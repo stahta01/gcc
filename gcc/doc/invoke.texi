@@ -329,7 +329,7 @@ in the following sections.
 
 @emph{M68hc1x Options}
 @gccoptlist{-m6811  -m6812  -m68hc11  -m68hc12  -m68hcs12 @gol
--mauto-incdec  -minmax  -mlong-calls  -mshort @gol
+-mauto-incdec  -minmax  -mlong-calls  -mrelax  -mshort @gol
 -msoft-reg-count=@var{count}}
 
 @emph{VAX Options}
@@ -5624,7 +5624,20 @@ Enable the use of 68HC12 min and max instructions.
 @opindex mno-long-calls
 Treat all calls as being far away (near).  If calls are assumed to be
 far away, the compiler will use the @code{call} instruction to
-call a function and the @code{rtc} instruction for returning.
+call a function and the @code{rtc} instruction for returning.  An interrupt
+or a trap handler is not affected by this option and is always considered near.
+
+@item -mrelax
+@opindex mrelax
+Indicate to the compiler and linker that they should perform a relaxation
+optimization pass to shorten branches, calls and absolute memory addresses.
+The compiler will not use direct addressing mode for pseudo-soft registers and
+it will also emit some @code{bset} and @code{bclr} sequences that can be
+optimized by the linker.  The linker option @option{-relax} will be used
+and the linker will transform 16-bit addressing modes into direct addressing
+modes if possible.
+
+This option makes symbolic debugging impossible.
 
 @item -mshort
 @opindex mshort

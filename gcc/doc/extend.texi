@@ -2528,10 +2528,13 @@ to call and return from a function.
 
 On 68HC11 the compiler will generate a sequence of instructions
 to invoke a board-specific routine to switch the memory bank and call the
-real function. The board-specific routine simulates a @code{call}.
+real function.  The board-specific routine simulates a @code{call}.
 At the end of a function, it will jump to a board-specific routine
-instead of using @code{rts}. The board-specific return routine simulates
+instead of using @code{rts}.  The board-specific return routine simulates
 the @code{rtc}.
+
+The @code{far} attribute must not be used when the @code{interrupt} or
+@code{trap} attributes are used.
 
 @item near
 @cindex functions which do not handle memory bank switching on 68HC11/68HC12
@@ -2539,6 +2542,21 @@ On 68HC11 and 68HC12 the @code{near} attribute causes the compiler to
 use the normal calling convention based on @code{jsr} and @code{rts}.
 This attribute can be used to cancel the effect of the @option{-mlong-calls}
 option.
+
+@item page0
+@cindex variables in page0 section for which direct addressing mode can be used
+On 68HC11 and 68HC12, the @code{page0} attribute indicates that a global
+or static variable is put in the @code{page0} section and the compiler can
+use the direct addressing mode.  On 68HC11 the compiler will be able to
+use @code{bset} and @code{bclr} on these variables.  Note that the @code{page0}
+is limited to the absolute address range @code{0}..@code{0x0ff}.
+
+@item trap
+@cindex functions which are used as trap handlers (@code{swi} or @code{trap})
+On 68HC11 and 68HC12, the @code{trap} attribute marks the function as being
+a trap handler.  It will use @code{rti} instead of @code{rts} to return
+from the function.  Offset of function parameters are also adjusted to take
+into account the trap frame.
 
 @item dllimport
 @cindex @code{__declspec(dllimport)}
