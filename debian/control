@@ -1,0 +1,20 @@
+Source: gcc-m68hc1x
+Section: devel
+Priority: extra
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+XSBC-Original-Maintainer: Arthur Loiret <arthur.loiret@gmail.com>
+Standards-Version: 3.7.3
+Build-Depends: debhelper (>= 6.0), binutils-m68hc1x (>= 1:2.15+2.92), autoconf2.13, libtool, gawk | awk, bison, flex, gettext, texinfo, zlib1g-dev, bzip2
+XS-DM-Upload-Allowed: yes
+
+Package: gcc-m68hc1x
+Architecture: any
+Section: devel
+Priority: extra
+Depends: ${shlibs:Depends}, ${misc:Depends}, binutils-m68hc1x (>= 1:2.15+2.92)
+Suggests: task-c-devel, newlib-m68hc1x
+Provides: c-compiler-m68hc11, c-compiler-m68hc12
+Description: GNU C compiler for the Motorola 68HC11/12 processors
+ This is the GNU C compiler, a fairly portable optimizing compiler which
+ supports multiple languages. This package includes support for C for
+ cross-compiling to a Motorola 68HC11/12 microcontroller-based target.
