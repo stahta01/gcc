@@ -117,10 +117,40 @@ typedef int enum_machine_mode;
 
 /* Run-time compilation parameters selecting different hardware subsets.  */
 
+extern int target_flags;
+
 extern short *reg_renumber;	/* def in local_alloc.c */
 
+/* Macros used in the machine description to test the flags.  */
+
+/* 6811 specific options
+ *
+ * For 68HC12, the auto inc/dec mode is disabled by default. The reason
+ * is that for most programs, the reload pass will fail because it needs
+ * more registers to save the value of the indexed register after the
+ * memory access.  For simple programs, you can enable this
+ * with -mauto-incdec.
+ */
+
+#define MASK_SHORT              0002	/* Compile with 16-bit `int' */
+#define MASK_AUTO_INC_DEC       0004
+#define MASK_M6811              0010
+#define MASK_M6812              0020
+#define MASK_M68S12             0040
+#define MASK_NO_DIRECT_MODE     0100
+#define MASK_MIN_MAX            0200
+#define MASK_LONG_CALLS         0400
+
 #define TARGET_OP_TIME		(optimize && optimize_size == 0)
+#define TARGET_SHORT            (target_flags & MASK_SHORT)
+#define TARGET_M6811            (target_flags & MASK_M6811)
+#define TARGET_M6812            (target_flags & MASK_M6812)
+#define TARGET_M68S12           (target_flags & MASK_M68S12)
+#define TARGET_AUTO_INC_DEC     (target_flags & MASK_AUTO_INC_DEC)
+#define TARGET_MIN_MAX          (target_flags & MASK_MIN_MAX)
+#define TARGET_NO_DIRECT_MODE   (target_flags & MASK_NO_DIRECT_MODE)
 #define TARGET_RELAX            (TARGET_NO_DIRECT_MODE)
+#define TARGET_LONG_CALLS       (target_flags & MASK_LONG_CALLS)
 
 /* Default target_flags if no switches specified.  */
 #ifndef TARGET_DEFAULT
@@ -365,7 +395,7 @@ SOFT_REG_FIRST+28, SOFT_REG_FIRST+29,SOFT_REG_FIRST+30,SOFT_REG_FIRST+31
 #define SOFT_AP_REGNUM		(SOFT_FP_REGNUM+1)
 
 /* Number of actual hardware registers. The hardware registers are assigned
-   numbers for the compiler from 0 to just below FIRST_PSEUDO_REGISTER. 
+   numbers for the compiler from 0 to just below FIRST_PSEUDO_REGISTER.
    All registers that the compiler knows about must be given numbers, even
    those that are not normally considered general registers.  */
 #define FIRST_PSEUDO_REGISTER	(SOFT_REG_LAST+2)
@@ -779,7 +809,7 @@ extern enum reg_class m68hc11_tmp_regs_class;
    `G' is for 0.0.  */
 #define CONST_DOUBLE_OK_FOR_LETTER_P(VALUE, C) \
   ((C) == 'G' ? (GET_MODE_CLASS (GET_MODE (VALUE)) == MODE_FLOAT \
-		 && VALUE == CONST0_RTX (GET_MODE (VALUE))) : 0) 
+		 && VALUE == CONST0_RTX (GET_MODE (VALUE))) : 0)
 
 /* 'U' represents certain kind of memory indexed operand for 68HC12.
    and any memory operand for 68HC11.
@@ -808,7 +838,7 @@ extern enum reg_class m68hc11_tmp_regs_class;
    of local variables.  */
 #define FRAME_GROWS_DOWNWARD		0
 
-/* Define this if successive arguments to a function occupy decreasing 
+/* Define this if successive arguments to a function occupy decreasing
    addresses in the stack.  */
 /* #define ARGS_GROW_DOWNWARD */
 
@@ -834,10 +864,10 @@ extern enum reg_class m68hc11_tmp_regs_class;
 /* Define this if functions should assume that stack space has been
    allocated for arguments even when their values are passed in
    registers.
-  
+
    The value of this macro is the size, in bytes, of the area reserved for
    arguments passed in registers.
-  
+
    This space can either be allocated by the caller or be a part of the
    machine-dependent stack frame: `OUTGOING_REG_PARM_STACK_SPACE'
    says which.  */
@@ -846,7 +876,7 @@ extern enum reg_class m68hc11_tmp_regs_class;
 /* Define this macro if REG_PARM_STACK_SPACE is defined but stack
    parameters don't skip the area specified by REG_PARM_STACK_SPACE.
    Normally, when a parameter is not passed in registers, it is placed on
-   the stack beyond the REG_PARM_STACK_SPACE area.  Defining this macro  
+   the stack beyond the REG_PARM_STACK_SPACE area.  Defining this macro
    suppresses this behavior and causes the parameter to be passed on the
    stack in its natural location.  */
 /* #define STACK_PARMS_IN_REG_PARM_AREA */
@@ -918,7 +948,7 @@ extern enum reg_class m68hc11_tmp_regs_class;
    arguments described by the number-of-args field in the call. FUNTYPE is
    the data type of the function (as a tree), or for a library call it is
    an identifier node for the subroutine name.
-  
+
    The standard MC6811 call, with arg count word, includes popping the
    args as part of the call template.  */
 #define RETURN_POPS_ARGS(FUNDECL,FUNTYPE,SIZE)	0
@@ -1196,7 +1226,7 @@ extern unsigned char m68hc11_reg_valid_for_index[FIRST_PSEUDO_REGISTER];
    of them.  The usual definition accepts all pseudo regs; the other rejects
    them unless they have been allocated suitable hard regs.  The symbol
    REG_OK_STRICT causes the latter definition to be used.
-  
+
    Most source files want to accept pseudo regs in the hope that they will
    get allocated to the class that the insn wants them to be in. Source files
    for reload pass need to be strict. After reload, it makes no difference,
@@ -1217,13 +1247,13 @@ extern unsigned char m68hc11_reg_valid_for_index[FIRST_PSEUDO_REGISTER];
 /* Try machine-dependent ways of modifying an illegitimate address
    to be legitimate.  If we find one, return the new, valid address.
    This macro is used in only one place: `memory_address' in explow.c.
-  
+
    OLDX is the address as it was before break_out_memory_refs was called.
    In some cases it is useful to look at this to decide what needs to be done.
-  
+
    MODE and WIN are passed so that this macro can use
    GO_IF_LEGITIMATE_ADDRESS.
-  
+
    It is always safe for this macro to do nothing.
    It exists to recognize opportunities to optimize the output.  */
 
@@ -1432,7 +1462,7 @@ do {                                                                    \
   print_operand_address (FILE, ADDR)
 
 /* This is how to output an insn to push/pop a register on the stack.
-   It need not be very fast code.  
+   It need not be very fast code.
 
    Don't define because we don't know how to handle that with
    the STATIC_CHAIN_REGNUM (soft register).  Saving the static
