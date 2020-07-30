@@ -285,6 +285,10 @@ extern const struct processor_costs *m68hc11_cost;
 /* Define this if most significant word of a multiword number is numbered.  */
 #define WORDS_BIG_ENDIAN 	1
 
+/* Use a MAX_BITS_PER_WORD equivalent to SImode so that
+   several SI patterns can be used (mostly shift & add).  */
+/* #define MAX_BITS_PER_WORD       32  */
+
 /* Width of a word, in units (bytes).  */
 #define UNITS_PER_WORD		2
 
@@ -812,8 +816,8 @@ extern enum reg_class m68hc11_tmp_regs_class;
 /* A C expression that is nonzero if hard register number REGNO2 can be
    considered for use as a rename register for REGNO1 */
 
-#define HARD_REGNO_RENAME_OK(REGNO1,REGNO2) \
-  m68hc11_hard_regno_rename_ok ((REGNO1), (REGNO2))
+#define HARD_REGNO_RENAME_OK(REGNO1,REGNO2,MODE)            \
+  m68hc11_hard_regno_rename_ok ((REGNO1), (REGNO2), (MODE))
 
 /* A C expression whose value is nonzero if pseudos that have been
    assigned to registers of class CLASS would likely be spilled
@@ -1208,7 +1212,7 @@ extern enum reg_class m68hc11_index_reg_class;
 
 
 /* Internal macro, return 1 if REGNO is a valid base register.  */
-#define REG_VALID_P(REGNO) (1)	/* ? */
+#define REG_VALID_P(REGNO) ((REGNO) >= 0)
 
 extern unsigned char m68hc11_reg_valid_for_base[FIRST_PSEUDO_REGISTER];
 #define REG_VALID_FOR_BASE_P(REGNO) \
@@ -1633,6 +1637,12 @@ do {                                                                    \
 /* The prefix for immediate operands.  */
 #define IMMEDIATE_PREFIX "#"
 #define GLOBAL_ASM_OP   "\t.globl\t"
+
+/* This is how to output a reference to a user-level label named NAME.
+   `assemble_name' uses this.  */
+#undef  ASM_OUTPUT_LABELREF
+#define ASM_OUTPUT_LABELREF(FILE, NAME) \
+  asm_fprintf (FILE, "%U%s", (*targetm.strip_name_encoding) (NAME))
 
 
 /* Miscellaneous Parameters.  */

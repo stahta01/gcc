@@ -4741,7 +4741,8 @@ loop_givs_reduce (struct loop *loop, struct iv_class *bl)
 	     this is an address giv, then try to put the increment
 	     immediately after its use, so that flow can create an
 	     auto-increment addressing mode.  */
-	  if (v->giv_type == DEST_ADDR && bl->biv_count == 1
+	  if ((HAVE_POST_INCREMENT || HAVE_POST_DECREMENT)
+              && v->giv_type == DEST_ADDR && bl->biv_count == 1
 	      && bl->biv->always_executed && ! bl->biv->maybe_multiple
 	      /* We don't handle reversed biv's because bl->biv->insn
 		 does not have a valid INSN_LUID.  */
@@ -8929,7 +8930,13 @@ maybe_eliminate_biv_1 (const struct loop *loop, rtx x, rtx insn,
 		    || (GET_CODE (v->add_val) == REG
 			&& REG_POINTER (v->add_val)))
 		&& ! v->ignore && ! v->maybe_dead && v->always_computable
-		&& v->mode == mode)
+		&& v->mode == mode
+                /* SCz: There is a possible overflow here.
+                   If we compare to a constant value, the constant is
+                   re-computed (CST * mult_add + add_val) and there may
+                   be an overflow. CST was 16399, mult was 8, and integers
+                   are 16-bits.   (execute/loop-3c.c, -Os -mshort).  */
+                && 0)
 	      {
 		if (! biv_elimination_giv_has_0_offset (bl->biv, v, insn))
 		  continue;

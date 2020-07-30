@@ -6425,7 +6425,7 @@ make_compound_operation (rtx x, enum rtx_code in_code)
      address, we stay there.  If we have a comparison, set to COMPARE,
      but once inside, go back to our default of SET.  */
 
-  next_code = (code == MEM || code == PLUS || code == MINUS ? MEM
+  next_code = (code == MEM /* SCz: || code == PLUS || code == MINUS */ ? MEM
 	       : ((code == COMPARE || GET_RTX_CLASS (code) == '<')
 		  && XEXP (x, 1) == const0_rtx) ? COMPARE
 	       : in_code == COMPARE ? SET : in_code);

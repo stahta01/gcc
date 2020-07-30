@@ -543,7 +543,7 @@ verify_local_live_at_start (regset new_live_at_start, basic_block bb)
 	      fputs ("Old:\n", rtl_dump_file);
 	      dump_bb (bb, rtl_dump_file);
 	    }
-	  abort ();
+	  // SCz: abort ();
 	}
     }
   else

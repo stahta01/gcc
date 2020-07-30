@@ -1731,9 +1731,6 @@ find_reg (struct insn_chain *chain, int order)
   if (best_reg == -1)
     return 0;
 
-  if (rtl_dump_file)
-    fprintf (rtl_dump_file, "Using reg %d for reload %d\n", best_reg, rnum);
-
   rl->nregs = HARD_REGNO_NREGS (best_reg, rl->mode);
   rl->regno = best_reg;
 
@@ -1881,6 +1878,7 @@ spill_failure (rtx insn, enum reg_class class)
     {
       error ("unable to find a register to spill in class `%s'",
 	     reg_class_names[class]);
+
       fatal_insn ("this is the insn:", insn);
     }
 }
@@ -3902,7 +3900,7 @@ reload_as_needed (int live_known)
 	     for this insn in order to be stored in
 	     (obeying register constraints).  That is correct; such reload
 	     registers ARE still valid.  */
-	  note_stores (oldpat, forget_old_reloads_1, NULL);
+         note_stores (oldpat, forget_old_reloads_1, NULL);
 
 	  /* There may have been CLOBBER insns placed after INSN.  So scan
 	     between INSN and NEXT and use them to forget old reloads.  */
@@ -4494,6 +4492,9 @@ reload_reg_reaches_end_p (unsigned int regno, int opnum, enum reload_type type)
     case RELOAD_OTHER:
       /* Since a RELOAD_OTHER reload claims the reg for the entire insn,
 	 its value must reach the end.  */
+      for (i = 0; i < reload_n_operands; i++)
+        if (TEST_HARD_REG_BIT (reload_reg_used_in_output[i], regno))
+          return 0;
       return 1;
 
       /* If this use is for part of the insn,
@@ -5192,6 +5193,13 @@ choose_reload_regs_init (struct insn_chain *chain, rtx *save_reload_reg_rtx)
   CLEAR_HARD_REG_SET (reload_reg_used_in_insn);
   CLEAR_HARD_REG_SET (reload_reg_used_in_other_addr);
 
+#if 0 /* TARGET_M68HC11 or NO_SPILL_REG_ROUND_ROBIN */
+  /* Don't use the round-robin fashion for allocation of spill registers.
+     If we use round-robin, the reload pass allocates Y and Z registers
+     which are expensive compared to X and D.  */
+  last_spill_reg = -1;
+#endif
+  
   CLEAR_HARD_REG_SET (reg_used_in_insn);
   {
     HARD_REG_SET tmp;
@@ -5941,6 +5949,29 @@ deallocate_reload_reg (int r)
   reload_spill_index[r] = -1;
 }
 
+
+/* Returns true if merging reloads i and j should result in a
+   RELOAD_FOR_OTHER_ADDRESS reload, else false for RELOAD_OTHER.  */
+static int
+merge_becomes_other_address (int i, int j)
+{
+  int wn1 = rld[i].when_needed;
+  int wn2 = rld[j].when_needed;
+
+  if (wn2 == RELOAD_FOR_OTHER_ADDRESS)
+    wn2 = wn1;
+  else if (wn1 != RELOAD_FOR_OTHER_ADDRESS)
+    return 0;
+
+  return (wn2 == RELOAD_FOR_INPUT_ADDRESS
+	  || wn2 == RELOAD_FOR_INPADDR_ADDRESS
+	  || wn2 == RELOAD_FOR_OUTPUT_ADDRESS
+	  || wn2 == RELOAD_FOR_OUTADDR_ADDRESS
+	  || wn2 == RELOAD_FOR_OPERAND_ADDRESS
+	  || wn2 == RELOAD_FOR_OPADDR_ADDR
+	  || wn2 == RELOAD_FOR_OTHER_ADDRESS);
+}
+
 /* If SMALL_REGISTER_CLASSES is nonzero, we may not have merged two
    reloads of the same item for fear that we might not have enough reload
    registers. However, normally they will get the same reload register
@@ -5954,6 +5985,7 @@ deallocate_reload_reg (int r)
    This will not increase the number of spill registers needed and will
    prevent redundant code.  */
 
+extern const char *const reload_when_needed_name[];
 static void
 merge_assigned_reloads (rtx insn)
 {
@@ -6017,6 +6049,7 @@ merge_assigned_reloads (rtx insn)
       if (j == n_reloads
 	  && max_input_address_opnum <= min_conflicting_input_opnum)
 	{
+          int changed = 0;
 	  for (j = 0; j < n_reloads; j++)
 	    if (i != j && rld[j].reg_rtx != 0
 		&& rtx_equal_p (rld[i].reg_rtx, rld[j].reg_rtx)
@@ -6024,12 +6057,22 @@ merge_assigned_reloads (rtx insn)
 		    || rld[j].when_needed == RELOAD_FOR_INPUT_ADDRESS
 		    || rld[j].when_needed == RELOAD_FOR_OTHER_ADDRESS))
 	      {
-		rld[i].when_needed = RELOAD_OTHER;
+ 		if (merge_becomes_other_address (i, j))
+ 		  rld[i].when_needed = RELOAD_FOR_OTHER_ADDRESS;
+ 		else
+ 		  rld[i].when_needed = RELOAD_OTHER;
 		rld[j].in = 0;
 		reload_spill_index[j] = -1;
 		transfer_replacements (i, j);
+                changed = 1;
 	      }
 
+ 	  /* If this is now RELOAD_OTHER or RELOAD_FOR_OTHER_ADDRESS,
+ 	     look for any reloads that load parts of this operand and
+ 	     set them to RELOAD_FOR_OTHER_ADDRESS if they were for
+ 	     inputs, RELOAD_OTHER for outputs.  Note that this test is
+ 	     equivalent to looking for reloads for this operand
+  	     number.  */
 	  /* If this is now RELOAD_OTHER, look for any reloads that load
 	     parts of this operand and set them to RELOAD_FOR_OTHER_ADDRESS
 	     if they were for inputs, RELOAD_OTHER for outputs.  Note that
@@ -6040,7 +6083,9 @@ merge_assigned_reloads (rtx insn)
 	     same value or a part of it; we must not change its type if there
 	     is a conflicting input.  */
 
-	  if (rld[i].when_needed == RELOAD_OTHER)
+ 	  if (changed
+              && (rld[i].when_needed == RELOAD_OTHER
+ 	          || rld[i].when_needed == RELOAD_FOR_OTHER_ADDRESS))
 	    for (j = 0; j < n_reloads; j++)
 	      if (rld[j].in != 0
 		  && rld[j].when_needed != RELOAD_OTHER
@@ -6055,7 +6100,8 @@ merge_assigned_reloads (rtx insn)
 
 		  rld[j].when_needed
 		    = ((rld[j].when_needed == RELOAD_FOR_INPUT_ADDRESS
-			|| rld[j].when_needed == RELOAD_FOR_INPADDR_ADDRESS)
+			|| rld[j].when_needed == RELOAD_FOR_INPADDR_ADDRESS
+                        || rld[j].when_needed == RELOAD_FOR_OPADDR_ADDR)
 		       ? RELOAD_FOR_OTHER_ADDRESS : RELOAD_OTHER);
 
 		  /* Check to see if we accidentally converted two reloads
@@ -6067,8 +6113,13 @@ merge_assigned_reloads (rtx insn)
 		      if (rld[k].in != 0 && rld[k].reg_rtx != 0
 			  && rld[k].when_needed == rld[j].when_needed
 			  && rtx_equal_p (rld[k].reg_rtx, rld[j].reg_rtx)
-			  && ! rtx_equal_p (rld[k].in, rld[j].in))
+			  && ! rtx_equal_p (rld[k].in, rld[j].in)) {
+                        printf("Changed reload %d, conflict %d with %d\n",
+                               i, k, j);
+                        
 			abort ();
+                      }
+                  
 		}
 	}
     }
@@ -7205,6 +7256,13 @@ emit_reload_insns (struct insn_chain *chain)
 					      rld[r].when_needed))
 		  CLEAR_HARD_REG_BIT (reg_reloaded_valid, i + k);
 	    }
+          else
+            {
+              /* When the reload does not reach the end, we must
+                 invalidate the old info.  */
+              for (k = 0; k < nr; k++)
+                CLEAR_HARD_REG_BIT (reg_reloaded_valid, i + k);
+            }
 	}
 
       /* The following if-statement was #if 0'd in 1.34 (or before...).

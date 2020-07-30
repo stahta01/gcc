@@ -148,6 +148,16 @@ int m68hc11_sp_correction;
 int m68hc11_addr_mode;
 int m68hc11_mov_addr_mode;
 
+#define ADDR_STRICT       0x01  /* Accept only registers in class A_REGS  */
+#define ADDR_INCDEC       0x02  /* Post/Pre inc/dec */
+#define ADDR_INDEXED      0x04  /* D-reg index */
+#define ADDR_OFFSET       0x08
+#define ADDR_INDIRECT     0x10  /* Accept (mem (mem ...)) for [n,X] */
+#define ADDR_CONST        0x20  /* Accept const and symbol_ref  */
+
+int m68hc11_addr_mode;
+int m68hc11_mov_addr_mode;
+
 /* Comparison operands saved by the "tstxx" and "cmpxx" expand patterns.  */
 rtx m68hc11_compare_op0;
 rtx m68hc11_compare_op1;
@@ -265,6 +275,9 @@ static int nb_soft_regs;
 #undef TARGET_INIT_LIBFUNCS
 #define TARGET_INIT_LIBFUNCS m68hc11_init_libfuncs
 
+#undef TARGET_STRIP_NAME_ENCODING
+#define TARGET_STRIP_NAME_ENCODING m68hc11_strip_name_encoding
+
 struct gcc_target targetm = TARGET_INITIALIZER;
 
 int
@@ -365,7 +378,7 @@ m68hc11_conditional_register_usage (void)
   /* For 68HC12, the Z register emulation is not necessary when the
      frame pointer is not used.  The frame pointer is eliminated and
      replaced by the stack register (which is a BASE_REG_CLASS).  */
-  if (TARGET_M6812 && flag_omit_frame_pointer && optimize)
+  if (TARGET_M6812 && flag_omit_frame_pointer && optimize && 0)
     {
       fixed_regs[HARD_Z_REGNUM] = 1;
     }
@@ -442,6 +455,11 @@ m68hc11_hard_regno_rename_ok (int reg1, int reg2)
   /* Don't accept renaming D,X to Y register as the code will be bigger.  */
   if (TARGET_M6811 && reg2 == HARD_Y_REGNUM
       && (D_REGNO_P (reg1) || X_REGNO_P (reg1)))
+    return 0;
+
+  /* Don't rename D as if it holds a 8-bit value, the code will be
+     bigger.  */
+  if (mode == QImode && D_REGNO_P (reg1))
     return 0;
 
   return 1;
@@ -569,6 +587,7 @@ static int
 register_indirect_p (rtx operand, enum machine_mode mode, int addr_mode)
 {
   rtx base, offset;
+  int addr_mode;
 
   switch (GET_CODE (operand))
     {
@@ -957,6 +976,27 @@ m68hc11_auto_inc_p (rtx x)
 
 /* Predicates for machine description.  */
 
+/* Predicate for nonimmediate operands but which rejects the
+   auto-increment/decrement modes.  We must use this predicate
+   for operand 0 (and sometimes operand 1) when an insn can have
+   an operand that would create a RELOAD_OTHER in which a reload
+   part (RELOAD_FOR_OUTPUT_ADDRESS) could be created.  When this
+   happens, the RELOAD_FOR_OUTPUT_ADDRESS is emitted after the RELOAD_OTHER
+   and this will not be valid.  */
+int
+nonimmediate_noinc_operand (operand, mode)
+     rtx operand;
+     enum machine_mode mode;
+{
+  if (GET_CODE (operand) == MEM)
+    {
+      rtx addr = XEXP (operand, 0);
+      if (m68hc11_auto_inc_p (addr))
+	return 0;
+    }
+  return nonimmediate_operand (operand, mode);
+}
+
 int
 memory_reload_operand (rtx operand, enum machine_mode mode ATTRIBUTE_UNUSED)
 {
@@ -1060,6 +1100,7 @@ m68hc11_symbolic_p (rtx operand, enum machine_mode mode)
   if (GET_CODE (operand) == MEM)
     {
       rtx op = XEXP (operand, 0);
+      int addr_mode;
 
       if (symbolic_memory_operand (op, mode))
 	return 1;
@@ -1291,6 +1332,31 @@ m68hc11_initialize_trampoline (rtx tramp, rtx fnaddr, rtx cxt)
 
 /* Declaration of types.  */
 
+/* Handle an "tiny_data" attribute; arguments as in
+   struct attribute_spec.handler.  */
+static tree
+m68hc11_handle_page0_attribute (node, name, args, flags, no_add_attrs)
+     tree *node;
+     tree name;
+     tree args ATTRIBUTE_UNUSED;
+     int flags ATTRIBUTE_UNUSED;
+     bool *no_add_attrs;
+{
+  tree decl = *node;
+
+  if (TREE_STATIC (decl) || DECL_EXTERNAL (decl))
+    {
+      DECL_SECTION_NAME (decl) = build_string (6, ".page0");
+    }
+  else
+    {
+      warning ("`%s' attribute ignored", IDENTIFIER_POINTER (name));
+      *no_add_attrs = true;
+    }
+
+  return NULL_TREE;
+}
+
 const struct attribute_spec m68hc11_attribute_table[] =
 {
   /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler } */
@@ -1298,6 +1364,7 @@ const struct attribute_spec m68hc11_attribute_table[] =
   { "trap",      0, 0, false, true,  true,  m68hc11_handle_fntype_attribute },
   { "far",       0, 0, false, true,  true,  m68hc11_handle_fntype_attribute },
   { "near",      0, 0, false, true,  true,  m68hc11_handle_fntype_attribute },
+  { "page0",     0, 0, false, false, false, m68hc11_handle_page0_attribute },
   { NULL,        0, 0, false, false, false, NULL }
 };
 
@@ -1326,6 +1393,52 @@ m68hc11_handle_fntype_attribute (tree *node, tree name,
 
   return NULL_TREE;
 }
+/* Undo the effects of the above.  */
+
+static const char *
+m68hc11_strip_name_encoding (str)
+     const char *str;
+{
+  return str + (*str == '*' || *str == '@' || *str == '&');
+}
+
+static void
+m68hc11_encode_label (tree decl)
+{
+  const char *str = XSTR (XEXP (DECL_RTL (decl), 0), 0);
+  int len = strlen (str);
+  char *newstr = alloca (len + 2);
+
+  newstr[0] = '@';
+  strcpy (&newstr[1], str);
+
+  XSTR (XEXP (DECL_RTL (decl), 0), 0) = ggc_alloc_string (newstr, len + 1);
+}
+
+/* Return 1 if this is a symbol in page0  */
+int
+m68hc11_page0_symbol_p (rtx x)
+{
+  switch (GET_CODE (x))
+    {
+    case SYMBOL_REF:
+      return XSTR (x, 0) != 0 && XSTR (x, 0)[0] == '@';
+
+    case CONST:
+      return m68hc11_page0_symbol_p (XEXP (x, 0));
+
+    case PLUS:
+      if (!m68hc11_page0_symbol_p (XEXP (x, 0)))
+        return 0;
+
+      return GET_CODE (XEXP (x, 1)) == CONST_INT
+        && INTVAL (XEXP (x, 1)) < 256
+        && INTVAL (XEXP (x, 1)) >= 0;
+
+    default:
+      return 0;
+    }
+}
 
 /* We want to recognize trap handlers so that we handle calls to traps
    in a special manner (by issuing the trap).  This information is stored
@@ -1338,6 +1451,13 @@ m68hc11_encode_section_info (tree decl, rtx rtl, int first ATTRIBUTE_UNUSED)
   int trap_handler;
   int is_far = 0;
   
+  if (TREE_CODE (decl) == VAR_DECL)
+    {
+      if (lookup_attribute ("page0", DECL_ATTRIBUTES (decl)) != 0)
+        m68hc11_encode_label (decl);
+      return;
+    }
+
   if (TREE_CODE (decl) != FUNCTION_DECL)
     return;
 
@@ -1839,6 +1959,14 @@ expand_epilogue (void)
 	  emit_move_after_reload (gen_rtx (REG, HImode, regno),
 				  stack_pop_word, scratch);
 	}
+      else if (mode == SImode)
+       {
+#if HOST_BITS_PER_WIDE_INT > 32
+         return gen_int_mode (val >> 32, SImode);
+#else
+         return (val >= 0) ? const0_rtx : constm1_rtx;
+#endif
+       }
     }
 
   /* de-allocate auto variables */
@@ -2356,7 +2484,21 @@ print_operand (FILE *file, rtx op, int letter)
             abort ();
           break;
 
+        case MEM:
+          if (TARGET_M6812)
+            {
+              fprintf (file, "[");
+              print_operand_address (file, XEXP (base, 0));
+              fprintf (file, "]");
+            }
+          else
+            abort ();
+          break;
+
 	default:
+          if (m68hc11_page0_symbol_p (base))
+            fprintf (file, "*");
+
 	  output_address (base);
 	  break;
 	}
@@ -3707,11 +3849,52 @@ m68hc11_gen_movqi (rtx insn, rtx *operands)
 	  else
 	    goto m6811_move;
 	}
+
+      /* The 68hc12 does not support (MEM:HI (MEM:HI)) with the movw
+         instruction.  We have to use a scratch register as temporary location.
+         Trying to use a specific pattern or constrain failed.  */
+      else if (GET_CODE (to) == MEM && GET_CODE (XEXP (to, 0)) == MEM)
+        {
+          rtx ops[4];
+
+          ops[0] = to;
+          ops[2] = from;
+          ops[3] = 0;
+          if (dead_register_here (insn, d_reg))
+            ops[1] = d_reg;
+          else if (dead_register_here (insn, ix_reg))
+            ops[1] = ix_reg;
+          else if (dead_register_here (insn, iy_reg))
+            ops[1] = iy_reg;
+          else
+            {
+              ops[1] = d_reg;
+              ops[3] = d_reg;
+              output_asm_insn ("psh%3", ops);
+            }
+
+          ops[0] = to;
+          ops[2] = from;
+          output_asm_insn ("ld%1\t%2", ops);
+          output_asm_insn ("st%1\t%0", ops);
+          if (ops[3])
+            output_asm_insn ("pul%3", ops);
+        }
+
+      /* Use movw for non-null constants or when we are clearing
+         a volatile memory reference.  However, this is possible
+         only if the memory reference has a small offset or is an
+         absolute address.  */
+      else if (GET_CODE (from) == CONST_INT
+               && INTVAL (from) == 0
+               && (MEM_VOLATILE_P (to) == 0
+                   || m68hc11_small_indexed_indirect_p (to, HImode) == 0))
+        {
+          output_asm_insn ("clr\t%h0", operands);
+          output_asm_insn ("clr\t%b0", operands);
+        }
       else
 	{
-	  rtx from = operands[1];
-	  rtx to = operands[0];
-
 	  if ((m68hc11_register_indirect_p (from, GET_MODE (from))
 	       && !m68hc11_small_indexed_indirect_p (from, GET_MODE (from)))
 	      || (m68hc11_register_indirect_p (to, GET_MODE (to))
@@ -3927,11 +4110,34 @@ m68hc11_gen_movqi (rtx insn, rtx *operands)
 	  break;
 
 	case HARD_X_REGNUM:
-	  output_asm_insn ("xgdx\n\tstab\t%b0\n\txgdx", operands);
-	  break;
-
-	case HARD_Y_REGNUM:
-	  output_asm_insn ("xgdy\n\tstab\t%b0\n\txgdy", operands);
+        case HARD_Y_REGNUM:
+	  if (!reg_mentioned_p (operands[1], operands[0]))
+	    {
+              output_asm_insn ("xgd%1\n\tstab\t%b0\n\txgd%1", operands);
+            }
+          else if (TARGET_M6811)
+            {
+              int dead = dead_register_here (insn, d_reg);
+	      output_asm_insn ("st%1\t%t1", operands);
+              if (!dead)
+                output_asm_insn ("psha", operands);
+	      output_asm_insn ("ldaa\t%T1", operands);
+	      output_asm_insn ("staa\t%0", operands);
+              if (!dead)
+                output_asm_insn ("pula", operands);
+	      CC_STATUS_INIT;
+            }
+          else
+            {
+              int dead = dead_register_here (insn, d_reg);
+              if (!dead)
+                output_asm_insn ("psha", operands);
+	      output_asm_insn ("tfr\t%1,a", operands);
+	      output_asm_insn ("staa\t%0", operands);
+              if (!dead)
+                output_asm_insn ("pulb", operands);
+	      CC_STATUS_INIT;
+            }
 	  break;
 
 	default:
@@ -4122,6 +4328,12 @@ m68hc11_notice_update_cc (rtx exp, rtx insn ATTRIBUTE_UNUSED)
   if (cc_status.value1 && GET_CODE (cc_status.value1) == REG
       && cc_status.value2
       && reg_overlap_mentioned_p (cc_status.value1, cc_status.value2))
+    cc_status.value2 = 0;
+
+  else if (cc_status.value1 && side_effects_p (cc_status.value1))
+    cc_status.value1 = 0;
+
+  else if (cc_status.value2 && side_effects_p (cc_status.value2))
     cc_status.value2 = 0;
 
   else if (cc_status.value1 && side_effects_p (cc_status.value1))
@@ -5356,7 +5568,7 @@ m68hc11_address_cost (rtx addr)
       break;
 
     case SYMBOL_REF:
-      cost = 8;
+      cost = m68hc11_page0_symbol_p (addr) ? 0 : 8;
       break;
 
     case LABEL_REF:
@@ -5389,7 +5601,7 @@ m68hc11_address_cost (rtx addr)
 	    break;
 
 	  case SYMBOL_REF:
-	    cost = 8;
+	    cost = m68hc11_page0_symbol_p (addr) ? 0 : 8;
 	    break;
 
 	  case CONST:
