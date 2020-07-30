@@ -3711,6 +3711,7 @@ above in recent GCC versions.
 Two attributes are currently defined for i386 configurations:
 @code{ms_struct} and @code{gcc_struct}
 
+@table @code
 @item ms_struct
 @itemx gcc_struct
 @cindex @code{ms_struct}
