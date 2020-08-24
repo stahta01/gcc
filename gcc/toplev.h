@@ -161,37 +161,81 @@ extern void decode_d_option		(const char *);
 /* Return true iff flags are set as if -ffast-math.  */
 extern bool fast_math_flags_set_p	(void);
 
-/* Return log2, or -1 if not exact.  */
-extern int exact_log2                  (unsigned HOST_WIDE_INT);
+/* GCC_VERSION >= 3004 */
 
-/* Return floor of log2, with -1 for zero.  */
-extern int floor_log2                  (unsigned HOST_WIDE_INT);
-
-/* Inline versions of the above for speed.  */
-#if GCC_VERSION >= 3004
+/* For convenience, define 0 -> word_size.  */
+static inline int
+clz_hwi (unsigned HOST_WIDE_INT x)
+{
+  if (x == 0)
+    return HOST_BITS_PER_WIDE_INT;
 # if HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONG
-#  define CLZ_HWI __builtin_clzl
-#  define CTZ_HWI __builtin_ctzl
+  return __builtin_clzl (x);
 # elif HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONGLONG
-#  define CLZ_HWI __builtin_clzll
-#  define CTZ_HWI __builtin_ctzll
+  return __builtin_clzll (x);
 # else
-#  define CLZ_HWI __builtin_clz
-#  define CTZ_HWI __builtin_ctz
+  return __builtin_clz (x);
 # endif
+}
 
-extern inline int
+static inline int
+ctz_hwi (unsigned HOST_WIDE_INT x)
+{
+  if (x == 0)
+    return HOST_BITS_PER_WIDE_INT;
+# if HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONG
+  return __builtin_ctzl (x);
+# elif HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONGLONG
+  return __builtin_ctzll (x);
+# else
+  return __builtin_ctz (x);
+# endif
+}
+
+static inline int
+ffs_hwi (unsigned HOST_WIDE_INT x)
+{
+# if HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONG
+  return __builtin_ffsl (x);
+# elif HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONGLONG
+  return __builtin_ffsll (x);
+# else
+  return __builtin_ffs (x);
+# endif
+}
+
+static inline int
+popcount_hwi (unsigned HOST_WIDE_INT x)
+{
+# if HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONG
+  return __builtin_popcountl (x);
+# elif HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONGLONG
+  return __builtin_popcountll (x);
+# else
+  return __builtin_popcount (x);
+# endif
+}
+
+static inline int
 floor_log2 (unsigned HOST_WIDE_INT x)
 {
-  return x ? HOST_BITS_PER_WIDE_INT - 1 - (int) CLZ_HWI (x) : -1;
+  return HOST_BITS_PER_WIDE_INT - 1 - clz_hwi (x);
 }
 
-extern inline int
+static inline int
+ceil_log2 (unsigned HOST_WIDE_INT x)
+{
+  return x == 0 ? 0 : floor_log2 (x - 1) + 1;
+}
+
+static inline int
 exact_log2 (unsigned HOST_WIDE_INT x)
 {
-  return x == (x & -x) && x ? (int) CTZ_HWI (x) : -1;
+  return pow2p_hwi (x) ? ctz_hwi (x) : -1;
 }
-#endif /* GCC_VERSION >= 3004 */
+
+/* GCC_VERSION >= 3004 */
+
 
 /* Functions used to get and set GCC's notion of in what directory
    compilation was started.  */

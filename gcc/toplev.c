@@ -540,56 +540,6 @@ read_integral_parameter (const char *p, const char *pname, const int  defval)
   return atoi (p);
 }
 
-/* Given X, an unsigned number, return the largest int Y such that 2**Y <= X.
-   If X is 0, return -1.  */
-
-int
-floor_log2 (unsigned HOST_WIDE_INT x)
-{
-  int t = 0;
-
-  if (x == 0)
-    return -1;
-
-#ifdef CLZ_HWI
-  t = HOST_BITS_PER_WIDE_INT - 1 - (int) CLZ_HWI (x);
-#else
-  if (HOST_BITS_PER_WIDE_INT > 64)
-    if (x >= (unsigned HOST_WIDE_INT) 1 << (t + 64))
-      t += 64;
-  if (HOST_BITS_PER_WIDE_INT > 32)
-    if (x >= ((unsigned HOST_WIDE_INT) 1) << (t + 32))
-      t += 32;
-  if (x >= ((unsigned HOST_WIDE_INT) 1) << (t + 16))
-    t += 16;
-  if (x >= ((unsigned HOST_WIDE_INT) 1) << (t + 8))
-    t += 8;
-  if (x >= ((unsigned HOST_WIDE_INT) 1) << (t + 4))
-    t += 4;
-  if (x >= ((unsigned HOST_WIDE_INT) 1) << (t + 2))
-    t += 2;
-  if (x >= ((unsigned HOST_WIDE_INT) 1) << (t + 1))
-    t += 1;
-#endif
-
-  return t;
-}
-
-/* Return the logarithm of X, base 2, considering X unsigned,
-   if X is a power of 2.  Otherwise, returns -1.  */
-
-int
-exact_log2 (unsigned HOST_WIDE_INT x)
-{
-  if (x != (x & -x))
-    return -1;
-#ifdef CTZ_HWI
-  return x ? CTZ_HWI (x) : -1;
-#else
-  return floor_log2 (x);
-#endif
-}
-
 /* Handler for fatal signals, such as SIGSEGV.  These are transformed
    into ICE messages, which is much more user friendly.  In case the
    error printer crashes, reset the signal to prevent infinite recursion.  */
