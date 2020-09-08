@@ -141,6 +141,10 @@ case "${target}" in
 	esac
 	;;
 
+  *-*-cygwin*)
+	config_path="cygwin posix"
+	;;
+
   *-*-mingw32*)
 	config_path="mingw32 posix"
 	;;
