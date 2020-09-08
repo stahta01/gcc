@@ -1418,7 +1418,10 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
 
     case "${target_os}" in
       cygwin*)
+        ac_has_clock_monotonic=yes
+        ac_has_clock_realtime=yes
         ac_has_nanosleep=yes
+        ac_has_sched_yield=yes
         ;;
       darwin*)
         ac_has_nanosleep=yes
