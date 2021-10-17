@@ -80,7 +80,7 @@ __gnat_expect_fork (void)
 void
 __gnat_expect_portable_execvp (int *pid, char *cmd, char *argv[])
 {
-  *pid = (int) spawnve (_P_NOWAIT, cmd, argv, NULL);
+  *pid = (int) spawnve (_P_NOWAIT, cmd, (const char* const*)argv, NULL);
 }
 
 int

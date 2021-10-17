@@ -76,7 +76,6 @@
 #ifdef __MINGW32__
 #include "mingw32.h"
 #include <sys/utime.h>
-#include <ctype.h>
 #else
 #ifndef VMS
 #include <utime.h>
@@ -189,9 +188,32 @@ struct vstring
 #define DIR_SEPARATOR '/'
 #endif
 
-char __gnat_dir_separator = DIR_SEPARATOR;
+/* Override the system.h DIR_SEPARATOR define on windows. */
+#ifdef _WIN32
+const char __gnat_dir_separator = '\\';
+#else
+const char __gnat_dir_separator = DIR_SEPARATOR;
+#endif
 
-char __gnat_path_separator = PATH_SEPARATOR;
+/* This is all in libiberty filenames.h, but we can't include when IN_RTS, */ 
+#if defined(__MSDOS__) || defined(_WIN32) || defined(__EMX__) \
+    || defined (__CYGWIN__)
+#ifndef HAVE_DOS_BASED_FILE_SYSTEM
+#define HAVE_DOS_BASED_FILE_SYSTEM 1
+#endif
+#endif
+
+static __inline__ int
+__gnat_is_dir_separator (const char c)
+{
+#ifdef HAVE_DOS_BASED_FILE_SYSTEM
+  return (c == '/' ||  c == '\\');
+#else
+  return (c == '/' || c == DIR_SEPARATOR);
+#endif
+}
+
+const char __gnat_path_separator = PATH_SEPARATOR;
 
 /* The GNAT_LIBRARY_TEMPLATE contains a list of expressions that define
    the base filenames that libraries specified with -lsomelib options
@@ -366,7 +388,7 @@ __gnat_try_lock (char *dir, char *file)
   char full_path[256];
   int fd;
 
-  sprintf (full_path, "%s%c%s", dir, DIR_SEPARATOR, file);
+  sprintf (full_path, "%s%c%s", dir, __gnat_dir_separator, file);
   fd = open (full_path, O_CREAT | O_EXCL, 0600);
   if (fd < 0)
     return 0;
@@ -386,7 +408,7 @@ __gnat_try_lock (char *dir, char *file)
   char full_path[256];
   int fd;
 
-  sprintf (full_path, "%s%c%s", dir, DIR_SEPARATOR, file);
+  sprintf (full_path, "%s%c%s", dir, __gnat_dir_separator, file);
   fd = open (full_path, O_CREAT | O_EXCL, 0600);
   if (fd < 0)
     return 0;
@@ -408,7 +430,7 @@ __gnat_try_lock (char *dir, char *file)
   struct stat stat_result;
   int fd;
 
-  sprintf (full_path, "%s%c%s", dir, DIR_SEPARATOR, file);
+  sprintf (full_path, "%s%c%s", dir, __gnat_dir_separator, file);
   sprintf (temp_file, "%s-%ld-%ld", dir, (long) getpid(), (long) getppid ());
 
   /* Create the temporary file and write the process number.  */
@@ -482,9 +504,9 @@ __gnat_get_current_dir (char *dir, int *length)
 
    *length = strlen (dir);
 
-   if (dir [*length - 1] != DIR_SEPARATOR)
+   if (!__gnat_is_dir_separator (dir[*length - 1]))
      {
-       dir [*length] = DIR_SEPARATOR;
+       dir [*length] = __gnat_dir_separator;
        ++(*length);
      }
    dir[*length] = '\0';
@@ -1374,9 +1396,9 @@ __gnat_file_exists (char *name)
 int
 __gnat_is_absolute_path (char *name)
 {
-  return (*name == '/' || *name == DIR_SEPARATOR
-#if defined (__EMX__) || defined (MSDOS) || defined (WINNT)
-      || (strlen (name) > 1 && isalpha (name[0]) && name[1] == ':')
+  return (__gnat_is_dir_separator (*name)
+#ifdef HAVE_DOS_BASED_FILE_SYSTEM
+	  || (name[0] && name[1] == ':')
 #endif
 	  );
 }
@@ -1853,7 +1875,7 @@ __gnat_locate_regular_file (char *file_name, char *path_val)
 
   /* If file_name include directory separator(s), try it first as
      a path name relative to the current directory */
-  for (ptr = file_name; *ptr && *ptr != '/' && *ptr != DIR_SEPARATOR; ptr++)
+  for (ptr = file_name; !__gnat_is_dir_separator (*ptr); ptr++)
     ;
 
   if (*ptr != 0)
@@ -1881,8 +1903,8 @@ __gnat_locate_regular_file (char *file_name, char *path_val)
         *ptr++ = *path_val++;
 
       ptr--;
-      if (*ptr != '/' && *ptr != DIR_SEPARATOR)
-        *++ptr = DIR_SEPARATOR;
+      if (!__gnat_is_dir_separator (*ptr))
+        *++ptr = __gnat_dir_separator;
 
       strcpy (++ptr, file_name);
 
@@ -2377,8 +2399,7 @@ _flush_cache()
       && ! (defined (linux) && defined (i386)) \
       && ! defined (hpux) \
       && ! defined (_AIX) \
-      && ! (defined (__alpha__)  && defined (__osf__)) \
-      && ! defined (__MINGW32__))
+      && ! (defined (__alpha__)  && defined (__osf__)))
 
 /* Dummy function to satisfy g-trasym.o.  Currently Solaris sparc, HP/UX,
    GNU/Linux x86, Tru64 & Windows provide a non-dummy version of this

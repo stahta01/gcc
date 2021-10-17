@@ -49,6 +49,10 @@
 
 #define OLD_MINGW (!(STD_MINGW))
 
+#if (STD_MINGW)
+#define MAXPATHLEN PATH_MAX /* This matches define in sys/param.h.  */
+#else
 #define MAXPATHLEN MAX_PATH
+#endif
 
 #endif /* _MINGW32_H */

@@ -120,6 +120,7 @@ __gnat_int_handler  (DWORD dwCtrlType)
     case CTRL_SHUTDOWN_EVENT:
       break;
     }
+  return TRUE;
 }
 
 void
