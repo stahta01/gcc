@@ -1,6 +1,6 @@
 /* Definitions of target machine for GCC for IA-32.
    Copyright (C) 1988, 1992, 1994, 1995, 1996, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004 Free Software Foundation, Inc.
+   2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -223,10 +223,12 @@ extern int i386_pe_dllexport_name_p (const char *);
 extern int i386_pe_dllimport_name_p (const char *);
 extern void i386_pe_unique_section (tree, int);
 extern void i386_pe_declare_function_type (FILE *, const char *, int);
-extern void i386_pe_record_external_function (const char *);
+extern void i386_pe_record_external_function (tree, const char *);
 extern void i386_pe_record_exported_symbol (const char *, int);
 extern void i386_pe_asm_file_end (FILE *);
 extern void i386_pe_encode_section_info (tree, rtx, int);
 extern const char *i386_pe_strip_name_encoding (const char *);
 extern const char *i386_pe_strip_name_encoding_full (const char *);
 extern void i386_pe_output_labelref (FILE *, const char *);
+/* in winnt-cxx.c (for C++) and winnt-stubs.c.  */
+extern int i386_pe_class_dllimport_p (tree decl);

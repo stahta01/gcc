@@ -30,23 +30,12 @@ Software Foundation, 59 Temple Place - Suite 330, Boston, MA
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "pex-read.h"
+
 #include <signal.h>
 #if ! defined( SIGCHLD ) && defined( SIGCLD )
 #  define SIGCHLD SIGCLD
 #endif
-
-#ifdef vfork /* Autoconf may define this to fork for us.  */
-# define VFORK_STRING "fork"
-#else
-# define VFORK_STRING "vfork"
-#endif
-#ifdef HAVE_VFORK_H
-#include <vfork.h>
-#endif
-#ifdef VMS
-#define vfork() (decc$$alloc_vfork_blocks() >= 0 ? \
-               lib$get_current_invo_context(decc$$get_vfork_jmpbuf()) : -1)
-#endif /* VMS */
 
 #ifndef LIBRARY_PATH_ENV
 #define LIBRARY_PATH_ENV "LIBRARY_PATH"
@@ -67,7 +56,6 @@ Software Foundation, 59 Temple Place - Suite 330, Boston, MA
    cross-versions are in the proper directories.  */
 
 #ifdef CROSS_COMPILE
-#undef SUNOS4_SHARED_LIBRARIES
 #undef OBJECT_FORMAT_COFF
 #undef MD_EXEC_PREFIX
 #undef REAL_LD_FILE_NAME
@@ -140,7 +128,7 @@ Software Foundation, 59 Temple Place - Suite 330, Boston, MA
   fprintf ((STREAM), "void _GLOBAL__DD() {\n\t%s();\n}\n", (FUNC))
 #endif
 
-#if defined (LDD_SUFFIX) || SUNOS4_SHARED_LIBRARIES
+#ifdef LDD_SUFFIX
 #define SCAN_LIBRARIES
 #endif
 
@@ -255,7 +243,9 @@ static char *find_a_file (struct path_prefix *, const char *);
 static void add_prefix (struct path_prefix *, const char *);
 static void prefix_from_env (const char *, struct path_prefix *);
 static void prefix_from_string (const char *, struct path_prefix *);
+static int collect_status (const char *, int status);
 static void do_wait (const char *);
+static void do_read_wait (const char *, FILE *);
 static void fork_execute (const char *, char **);
 static void maybe_unlink (const char *);
 static void add_to_list (struct head *, const char *);
@@ -424,7 +414,11 @@ handler (int signo)
 #endif
 
   signal (signo, SIG_DFL);
+#if HAVE_KILL
   kill (getpid (), signo);
+#else
+  raise (signo);
+#endif
 }
 
 
@@ -1458,14 +1452,11 @@ main (int argc, char **argv)
 }
 
 
-/* Wait for a process to finish, and exit if a nonzero status is found.  */
+/* Handle error status returned by a finished process.  */
 
-int
-collect_wait (const char *prog)
+static int
+collect_status (const char *prog, int status)
 {
-  int status;
-
-  pwait (pid, &status, 0);
   if (status)
     {
       if (WIFSIGNALED (status))
@@ -1483,6 +1474,17 @@ collect_wait (const char *prog)
   return 0;
 }
 
+/* Wait for a process to finish, and exit if a nonzero status is found.  */
+
+int
+collect_wait (const char *prog)
+{
+  int status;
+
+  pwait (pid, &status, 0);
+  return collect_status (prog, status);
+}
+
 static void
 do_wait (const char *prog)
 {
@@ -1494,6 +1496,19 @@ do_wait (const char *prog)
     }
 }
 
+static void
+do_read_wait (const char *prog, FILE *inf)
+{
+  int status;
+
+  pex_read_close (pid, inf, &status, 0);
+  status = collect_status (prog, status);
+  if (status != 0)
+    {
+      error ("%s returned %d exit status", prog, status);
+      collect_exit (status);
+    }
+}
 
 /* Execute a program, and wait for the reply.  */
 
@@ -1534,7 +1549,7 @@ collect_execute (const char *prog, char **argv, const char *redir)
   if (redir)
     {
       /* Open response file.  */
-      redir_handle = open (redir, O_WRONLY | O_TRUNC | O_CREAT);
+      redir_handle = open (redir, O_WRONLY | O_TRUNC | O_CREAT, S_IWUSR);
 
       /* Duplicate the stdout and stderr file handles
 	 so they can be restored later.  */
@@ -1993,13 +2008,16 @@ static void
 scan_prog_file (const char *prog_name, enum pass which_pass)
 {
   void (*int_handler) (int);
+#ifdef SIGQUIT
   void (*quit_handler) (int);
+#endif
   char *real_nm_argv[4];
   const char **nm_argv = (const char **) real_nm_argv;
   int argc = 0;
-  int pipe_fd[2];
   char *p, buf[1024];
   FILE *inf;
+  char *errmsg_fmt;
+  char *errmsg_arg;
 
   if (which_pass == PASS_SECOND)
     return;
@@ -2014,13 +2032,6 @@ scan_prog_file (const char *prog_name, enum pass which_pass)
 
   nm_argv[argc++] = prog_name;
   nm_argv[argc++] = (char *) 0;
-
-  if (pipe (pipe_fd) < 0)
-    fatal_perror ("pipe");
-
-  inf = fdopen (pipe_fd[0], "r");
-  if (inf == (FILE *) 0)
-    fatal_perror ("fdopen");
 
   /* Trace if needed.  */
   if (vflag)
@@ -2037,35 +2048,15 @@ scan_prog_file (const char *prog_name, enum pass which_pass)
   fflush (stdout);
   fflush (stderr);
 
-  /* Spawn child nm on pipe.  */
-  pid = vfork ();
-  if (pid == -1)
-    fatal_perror (VFORK_STRING);
+  inf = pex_read (nm_file_name, real_nm_argv, nm_file_name, NULL,
+		  &errmsg_fmt, &errmsg_arg, 0, &pid);
+  if (inf == (FILE *) 0)
+    fatal_perror (errmsg_fmt, errmsg_arg);
 
-  if (pid == 0)			/* child context */
-    {
-      /* setup stdout */
-      if (dup2 (pipe_fd[1], 1) < 0)
-	fatal_perror ("dup2 %d 1", pipe_fd[1]);
-
-      if (close (pipe_fd[0]) < 0)
-	fatal_perror ("close %d", pipe_fd[0]);
-
-      if (close (pipe_fd[1]) < 0)
-	fatal_perror ("close %d", pipe_fd[1]);
-
-      execv (nm_file_name, real_nm_argv);
-      fatal_perror ("execv %s", nm_file_name);
-    }
-
-  /* Parent context from here on.  */
   int_handler  = (void (*) (int)) signal (SIGINT,  SIG_IGN);
 #ifdef SIGQUIT
   quit_handler = (void (*) (int)) signal (SIGQUIT, SIG_IGN);
 #endif
-
-  if (close (pipe_fd[1]) < 0)
-    fatal_perror ("close %d", pipe_fd[1]);
 
   if (debug)
     fprintf (stderr, "\nnm output with constructors/destructors.\n");
@@ -2139,10 +2130,7 @@ scan_prog_file (const char *prog_name, enum pass which_pass)
   if (debug)
     fprintf (stderr, "\n");
 
-  if (fclose (inf) != 0)
-    fatal_perror ("fclose");
-
-  do_wait (nm_file_name);
+  do_read_wait (nm_file_name, inf);
 
   signal (SIGINT,  int_handler);
 #ifdef SIGQUIT
@@ -2150,269 +2138,6 @@ scan_prog_file (const char *prog_name, enum pass which_pass)
 #endif
 }
 
-#if SUNOS4_SHARED_LIBRARIES
-
-/* Routines to scan the SunOS 4 _DYNAMIC structure to find shared libraries
-   that the output file depends upon and their initialization/finalization
-   routines, if any.  */
-
-#include <a.out.h>
-#include <fcntl.h>
-#include <link.h>
-#include <sys/mman.h>
-#include <sys/param.h>
-#include <unistd.h>
-#include <sys/dir.h>
-
-/* pointers to the object file */
-unsigned object;	/* address of memory mapped file */
-unsigned objsize;	/* size of memory mapped to file */
-char * code;		/* pointer to code segment */
-char * data;		/* pointer to data segment */
-struct nlist *symtab;	/* pointer to symbol table */
-struct link_dynamic *ld;
-struct link_dynamic_2 *ld_2;
-struct head libraries;
-
-/* Map the file indicated by NAME into memory and store its address.  */
-
-static void
-mapfile (const char *name)
-{
-  int fp;
-  struct stat s;
-  if ((fp = open (name, O_RDONLY)) == -1)
-    fatal ("unable to open file '%s'", name);
-  if (fstat (fp, &s) == -1)
-    fatal ("unable to stat file '%s'", name);
-
-  objsize = s.st_size;
-  object = (unsigned) mmap (0, objsize, PROT_READ|PROT_WRITE, MAP_PRIVATE,
-			    fp, 0);
-  if (object == (unsigned)-1)
-    fatal ("unable to mmap file '%s'", name);
-
-  close (fp);
-}
-
-/* Helpers for locatelib.  */
-
-static const char *libname;
-
-static int
-libselect (struct direct *d)
-{
-  return (strncmp (libname, d->d_name, strlen (libname)) == 0);
-}
-
-/* If one file has an additional numeric extension past LIBNAME, then put
-   that one first in the sort.  If both files have additional numeric
-   extensions, then put the one with the higher number first in the sort.
-
-   We must verify that the extension is numeric, because Sun saves the
-   original versions of patched libraries with a .FCS extension.  Files with
-   invalid extensions must go last in the sort, so that they will not be used.  */
-
-static int
-libcompare (struct direct **d1, struct direct **d2)
-{
-  int i1, i2 = strlen (libname);
-  char *e1 = (*d1)->d_name + i2;
-  char *e2 = (*d2)->d_name + i2;
-
-  while (*e1 && *e2 && *e1 == '.' && *e2 == '.'
-	 && e1[1] && ISDIGIT (e1[1]) && e2[1] && ISDIGIT (e2[1]))
-    {
-      ++e1;
-      ++e2;
-      i1 = strtol (e1, &e1, 10);
-      i2 = strtol (e2, &e2, 10);
-      if (i1 != i2)
-	return i1 - i2;
-    }
-
-  if (*e1)
-    {
-      /* It has a valid numeric extension, prefer this one.  */
-      if (*e1 == '.' && e1[1] && ISDIGIT (e1[1]))
-	return 1;
-      /* It has an invalid numeric extension, must prefer the other one.  */
-      else
-	return -1;
-    }
-  else if (*e2)
-    {
-      /* It has a valid numeric extension, prefer this one.  */
-      if (*e2 == '.' && e2[1] && ISDIGIT (e2[1]))
-	return -1;
-      /* It has an invalid numeric extension, must prefer the other one.  */
-      else
-	return 1;
-    }
-  else
-    return 0;
-}
-
-/* Given the name NAME of a dynamic dependency, find its pathname and add
-   it to the list of libraries.  */
-
-static void
-locatelib (const char *name)
-{
-  static const char **l;
-  static int cnt;
-  char buf[MAXPATHLEN];
-  char *p, *q;
-  const char **pp;
-
-  if (l == 0)
-    {
-      char *ld_rules;
-      char *ldr = 0;
-      /* counting elements in array, need 1 extra for null */
-      cnt = 1;
-      ld_rules = (char *) (ld_2->ld_rules + code);
-      if (ld_rules)
-	{
-	  cnt++;
-	  for (; *ld_rules != 0; ld_rules++)
-	    if (*ld_rules == ':')
-	      cnt++;
-	  ld_rules = (char *) (ld_2->ld_rules + code);
-	  ldr = xstrdup (ld_rules);
-	}
-      p = getenv ("LD_LIBRARY_PATH");
-      q = 0;
-      if (p)
-	{
-	  cnt++;
-	  for (q = p ; *q != 0; q++)
-	    if (*q == ':')
-	      cnt++;
-	  q = xstrdup (p);
-	}
-      l = xmalloc ((cnt + 3) * sizeof (char *));
-      pp = l;
-      if (ldr)
-	{
-	  *pp++ = ldr;
-	  for (; *ldr != 0; ldr++)
-	    if (*ldr == ':')
-	      {
-		*ldr++ = 0;
-		*pp++ = ldr;
-	      }
-	}
-      if (q)
-	{
-	  *pp++ = q;
-	  for (; *q != 0; q++)
-	    if (*q == ':')
-	      {
-		*q++ = 0;
-		*pp++ = q;
-	      }
-	}
-      /* built in directories are /lib, /usr/lib, and /usr/local/lib */
-      *pp++ = "/lib";
-      *pp++ = "/usr/lib";
-      *pp++ = "/usr/local/lib";
-      *pp = 0;
-    }
-  libname = name;
-  for (pp = l; *pp != 0 ; pp++)
-    {
-      struct direct **namelist;
-      int entries;
-      if ((entries = scandir (*pp, &namelist, libselect, libcompare)) > 0)
-	{
-	  sprintf (buf, "%s/%s", *pp, namelist[entries - 1]->d_name);
-	  add_to_list (&libraries, buf);
-	  if (debug)
-	    fprintf (stderr, "%s\n", buf);
-	  break;
-	}
-    }
-  if (*pp == 0)
-    {
-      if (debug)
-	notice ("not found\n");
-      else
-	fatal ("dynamic dependency %s not found", name);
-    }
-}
-
-/* Scan the _DYNAMIC structure of the output file to find shared libraries
-   that it depends upon and any constructors or destructors they contain.  */
-
-static void
-scan_libraries (const char *prog_name)
-{
-  struct exec *header;
-  char *base;
-  struct link_object *lo;
-  char buff[MAXPATHLEN];
-  struct id *list;
-
-  mapfile (prog_name);
-  header = (struct exec *)object;
-  if (N_BADMAG (*header))
-    fatal ("bad magic number in file '%s'", prog_name);
-  if (header->a_dynamic == 0)
-    return;
-
-  code = (char *) (N_TXTOFF (*header) + (long) header);
-  data = (char *) (N_DATOFF (*header) + (long) header);
-  symtab = (struct nlist *) (N_SYMOFF (*header) + (long) header);
-
-  if (header->a_magic == ZMAGIC && header->a_entry == 0x20)
-    {
-      /* shared object */
-      ld = (struct link_dynamic *) (symtab->n_value + code);
-      base = code;
-    }
-  else
-    {
-      /* executable */
-      ld = (struct link_dynamic *) data;
-      base = code-PAGSIZ;
-    }
-
-  if (debug)
-    notice ("dynamic dependencies.\n");
-
-  ld_2 = (struct link_dynamic_2 *) ((long) ld->ld_un.ld_2 + (long)base);
-  for (lo = (struct link_object *) ld_2->ld_need; lo;
-       lo = (struct link_object *) lo->lo_next)
-    {
-      char *name;
-      lo = (struct link_object *) ((long) lo + code);
-      name = (char *) (code + lo->lo_name);
-      if (lo->lo_library)
-	{
-	  if (debug)
-	    fprintf (stderr, "\t-l%s.%d => ", name, lo->lo_major);
-	  sprintf (buff, "lib%s.so.%d.%d", name, lo->lo_major, lo->lo_minor);
-	  locatelib (buff);
-	}
-      else
-	{
-	  if (debug)
-	    fprintf (stderr, "\t%s\n", name);
-	  add_to_list (&libraries, name);
-	}
-    }
-
-  if (debug)
-    fprintf (stderr, "\n");
-
-  /* Now iterate through the library list adding their symbols to
-     the list.  */
-  for (list = libraries.first; list; list = list->next)
-    scan_prog_file (list->name, PASS_LIB);
-}
-
-#else  /* SUNOS4_SHARED_LIBRARIES */
 #ifdef LDD_SUFFIX
 
 /* Use the List Dynamic Dependencies program to find shared libraries that
@@ -2425,13 +2150,16 @@ scan_libraries (const char *prog_name)
   static struct head libraries;		/* list of shared libraries found */
   struct id *list;
   void (*int_handler) (int);
+#ifdef SIGQUIT
   void (*quit_handler) (int);
+#endif
   char *real_ldd_argv[4];
   const char **ldd_argv = (const char **) real_ldd_argv;
   int argc = 0;
-  int pipe_fd[2];
   char buf[1024];
   FILE *inf;
+  char *errmsg_fmt;
+  char *errmsg_arg;
 
   /* If we do not have an `ldd', complain.  */
   if (ldd_file_name == 0)
@@ -2466,35 +2194,16 @@ scan_libraries (const char *prog_name)
   fflush (stdout);
   fflush (stderr);
 
-  /* Spawn child ldd on pipe.  */
-  pid = vfork ();
-  if (pid == -1)
-    fatal_perror (VFORK_STRING);
-
-  if (pid == 0)			/* child context */
-    {
-      /* setup stdout */
-      if (dup2 (pipe_fd[1], 1) < 0)
-	fatal_perror ("dup2 %d 1", pipe_fd[1]);
-
-      if (close (pipe_fd[0]) < 0)
-	fatal_perror ("close %d", pipe_fd[0]);
-
-      if (close (pipe_fd[1]) < 0)
-	fatal_perror ("close %d", pipe_fd[1]);
-
-      execv (ldd_file_name, real_ldd_argv);
-      fatal_perror ("execv %s", ldd_file_name);
-    }
+  inf = pex_read (ldd_file_name, real_ldd_argv, ldd_file_name, NULL,
+		  &errmsg_fmt, &errmsg_arg, 0, &pid);
+  if (inf == (FILE *) 0)
+    fatal_perror (errmsg_fmt, errmsg_arg);
 
   /* Parent context from here on.  */
   int_handler  = (void (*) (int)) signal (SIGINT,  SIG_IGN);
 #ifdef SIGQUIT
   quit_handler = (void (*) (int)) signal (SIGQUIT, SIG_IGN);
 #endif
-
-  if (close (pipe_fd[1]) < 0)
-    fatal_perror ("close %d", pipe_fd[1]);
 
   if (debug)
     notice ("\nldd output with constructors/destructors.\n");
@@ -2532,10 +2241,7 @@ scan_libraries (const char *prog_name)
   if (debug)
     fprintf (stderr, "\n");
 
-  if (fclose (inf) != 0)
-    fatal_perror ("fclose");
-
-  do_wait (ldd_file_name);
+  do_read_wait (ldd_file_name, inf);
 
   signal (SIGINT,  int_handler);
 #ifdef SIGQUIT
@@ -2549,7 +2255,6 @@ scan_libraries (const char *prog_name)
 }
 
 #endif /* LDD_SUFFIX */
-#endif /* SUNOS4_SHARED_LIBRARIES */
 
 #endif /* OBJECT_FORMAT_NONE */
 

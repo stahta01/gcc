@@ -497,7 +497,7 @@ in the following sections.
 -m96bit-long-double  -mregparm=@var{num}  -momit-leaf-frame-pointer @gol
 -mno-red-zone -mno-tls-direct-seg-refs @gol
 -mcmodel=@var{code-model} @gol
--m32  -m64}
+-m32  -m64 -mstack-arg-probe}
 
 @emph{HPPA Options}
 @gccoptlist{-march=@var{architecture-type} @gol
@@ -5995,9 +5995,10 @@ instruction, which pops their arguments while returning.  This
 saves one instruction in the caller since there is no need to pop
 the arguments there.
 
-This calling convention is incompatible with the one normally
-used on Unix, so you cannot use it if you need to call libraries
-compiled with the Unix compiler.
+@strong{Warning:} this calling convention is incompatible with the
+one normally used on Unix or with GCC, so you cannot use it if you
+need to call libraries compiled with the Unix compiler or with GCC
+without the switch.
 
 Also, you must provide function prototypes for all functions that
 take variable numbers of arguments (including @code{printf});
@@ -8561,6 +8562,16 @@ building of shared libraries are not supported with the medium model.
 Generate code for the large model: This model makes no assumptions
 about addresses and sizes of sections.  Currently GCC does not implement
 this model.
+
+@item -mstack-arg-probe
+@opindex mstack-arg-probe
+Emit code in function prologue to probe the stack when allocating more
+than CHECK_STACK_LIMIT bytes in one go. 
+
+Currently, this is the default on windows systems (cygwin and mingw32),
+which define CHECK_STACK_LIMIT as 4000. On these systems, touching the
+stack at 4K increments is necessary to ensure that the guard pages used
+by the OS virtual memory manger are allocated in correct sequence.
 @end table
 
 @node HPPA Options

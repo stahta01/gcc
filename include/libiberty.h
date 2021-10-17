@@ -1,6 +1,6 @@
 /* Function declarations for libiberty.
 
-   Copyright 2001, 2002 Free Software Foundation, Inc.
+   Copyright 2001, 2002, 2004 Free Software Foundation, Inc.
    
    Note - certain prototypes declared in this header file are for
    functions whoes implementation copyright does not belong to the
@@ -41,6 +41,8 @@ extern "C" {
 
 #include "ansidecl.h"
 
+#include <stdio.h>
+
 #ifdef ANSI_PROTOTYPES
 /* Get a definition for size_t.  */
 #include <stddef.h>
@@ -62,6 +64,9 @@ extern void freeargv PARAMS ((char **));
 
 extern char **dupargv PARAMS ((char **)) ATTRIBUTE_MALLOC;
 
+/* Expand "@file" arguments in argv.  */
+
+extern void expandargv PARAMS ((int *,  char ***));
 
 /* Return the last component of a path name.  Note that we can't use a
    prototype here because the parameter is declared inconsistently
@@ -74,7 +79,7 @@ extern char **dupargv PARAMS ((char **)) ATTRIBUTE_MALLOC;
    to find the declaration so provide a fully prototyped one.  If it
    is 1, we found it so don't provide any declaration at all.  */
 #if !HAVE_DECL_BASENAME
-#if defined (__GNU_LIBRARY__ ) || defined (__linux__) || defined (__FreeBSD__) || defined (__OpenBSD__) || defined(__NetBSD__) || defined (__CYGWIN__) || defined (__CYGWIN32__) || defined (HAVE_DECL_BASENAME)
+#if defined (__GNU_LIBRARY__ ) || defined (__linux__) || defined (__FreeBSD__) || defined (__OpenBSD__) || defined(__NetBSD__) || defined (__CYGWIN__) || defined (__CYGWIN32__) || defined (__sun__) || defined (HAVE_DECL_BASENAME)
 extern char *basename PARAMS ((const char *));
 #else
 extern char *basename ();
@@ -274,7 +279,7 @@ extern void hex_init PARAMS ((void));
 extern int pexecute PARAMS ((const char *, char * const *, const char *,
 			    const char *, char **, char **, int));
 
-/* Wait for pexecute to finish.  */
+/* Wait for a process created by pexecute.  */
 
 extern int pwait PARAMS ((int, int *, int));
 

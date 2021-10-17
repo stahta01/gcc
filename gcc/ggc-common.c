@@ -61,6 +61,11 @@ Software Foundation, 59 Temple Place - Suite 330, Boston, MA
 #define VALGRIND_DISCARD(x)
 #endif
 
+
+#ifndef HOST_MMAP_OFFSET_ALIGNMENT
+#define HOST_MMAP_OFFSET_ALIGNMENT getpagesize()
+#endif
+
 /* Statistics about the allocation.  */
 static ggc_statistics *ggc_stats;
 
@@ -430,7 +435,7 @@ gt_pch_save (FILE *f)
   char *this_object = NULL;
   size_t this_object_size = 0;
   struct mmap_info mmi;
-  size_t page_size = getpagesize();
+  size_t mmap_offset_alignment = HOST_MMAP_OFFSET_ALIGNMENT;
 
   gt_pch_save_stringpool ();
 
@@ -486,8 +491,8 @@ gt_pch_save (FILE *f)
     o = ftell (state.f) + sizeof (mmi);
     if (o == -1)
       fatal_error ("can't get position in PCH file: %m");
-    mmi.offset = page_size - o % page_size;
-    if (mmi.offset == page_size)
+    mmi.offset = mmap_offset_alignment - o % mmap_offset_alignment;
+    if (mmi.offset == mmap_offset_alignment)
       mmi.offset = 0;
     mmi.offset += o;
   }

@@ -233,6 +233,15 @@ open_file (_cpp_file *file)
   else if (errno == ENOTDIR)
     errno = ENOENT;
 
+#if 1
+   /* An attempt to open() a directory fails and sets errno to EACCES, at
+      least on some hosts.  Check and reset errno to ENOENT.  */
+  else if (errno == EACCES
+	   && stat (file->path, &file->st) == 0
+	   && S_ISDIR (file->st.st_mode))
+    errno = ENOENT; 	    
+#endif
+
   file->err_no = errno;
 
   return false;
@@ -1108,7 +1117,7 @@ append_file_to_dir (const char *fname, cpp_dir *dir)
   flen = strlen (fname);
   path = xmalloc (dlen + 1 + flen + 1);
   memcpy (path, dir->name, dlen);
-  if (dlen && path[dlen - 1] != '/')
+  if (dlen && !IS_DIR_SEPARATOR (path[dlen - 1]))
     path[dlen++] = '/';
   memcpy (&path[dlen], fname, flen + 1);
 

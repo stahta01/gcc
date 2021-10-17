@@ -696,4 +696,16 @@ You Lose!  You must define PREFERRED_DEBUGGING_TYPE!
 #define EXIT_IGNORE_STACK 0
 #endif
 
+/* This should, in the abstract, be the empty string.  However,
+   historically, GCC has accepted GLIBC's "I" flag character on all
+   systems.  */
+#ifndef TARGET_EXTRA_PRINTF_FLAG_CHARS
+#define TARGET_EXTRA_PRINTF_FLAG_CHARS "I"
+#endif
+
+#ifndef TARGET_EXTRA_SCANF_FLAG_CHARS
+#define TARGET_EXTRA_SCANF_FLAG_CHARS "I"
+#endif
+
+
 #endif  /* ! GCC_DEFAULTS_H */

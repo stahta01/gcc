@@ -313,7 +313,7 @@ USUAL_LD_FOR_TARGET = ` \
   if [ -f $$r/ld/ld-new ] ; then \
     echo $$r/ld/ld-new ; \
   elif [ -f $$r/gcc/xgcc ]; then \
-    $(CC_FOR_TARGET) -print-prog-name=ld ; \
+    $(CC_FOR_TARGET) -print-prog-name=ld  | tr -d '\015' ; \
   else \
     if [ '$(host)' = '$(target)' ] ; then \
       echo $(LD); \

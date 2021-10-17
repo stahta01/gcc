@@ -58,7 +58,7 @@ Boston, MA 02111-1307, USA.  */
   %{shared: %{mdll: %eshared and mdll are not compatible}} \
   %{shared: --shared} %{mdll:--dll} \
   %{static:-Bstatic} %{!static:-Bdynamic} \
-  %{shared|mdll: -e _DllMainCRTStartup@12}"
+  %{shared|mdll: -e _DllMainCRTStartup@12 --enable-auto-image-base}"
 
 /* Include in the mingw32 libraries with libgcc */
 #undef LIBGCC_SPEC
@@ -67,7 +67,11 @@ Boston, MA 02111-1307, USA.  */
 
 #undef STARTFILE_SPEC
 #define STARTFILE_SPEC "%{shared|mdll:dllcrt2%O%s} \
-  %{!shared:%{!mdll:crt2%O%s}} %{pg:gcrt2%O%s}"
+  %{!shared:%{!mdll:crt2%O%s}} %{pg:gcrt2%O%s}  \
+  %{!fno-exceptions:crtbegin%O%s}"
+
+#undef ENDFILE_SPEC
+#define ENDFILE_SPEC "%{!fno-exceptions:crtend%O%s}"
 
 /* An additional prefix to try after the standard prefixes.  */
 #undef MD_STARTFILE_PREFIX
@@ -104,3 +108,27 @@ do {						         \
 /* Define as short unsigned for compatibility with MS runtime.  */
 #undef WINT_TYPE
 #define WINT_TYPE "short unsigned int"
+
+/* MSVCRT does not support the "I" flag provided by GLIBC.  */
+#undef TARGET_EXTRA_PRINTF_FLAG_CHARS
+#define TARGET_EXTRA_PRINTF_FLAG_CHARS ""
+#undef TARGET_EXTRA_SCANF_FLAG_CHARS
+#define TARGET_EXTRA_SCANF_FLAG_CHARS ""
+
+/* MSVCRT supports additional length specifiers for "printf".  (In
+   fact, it does not support some of the C99 specifiers, like
+   "ll".  However, we do not presently have a mechanism for disabling
+   a specifier.)  */  
+#define TARGET_EXTRA_PRINTF_LENGTH_SPECIFIERS	\
+  /* 32-bit integer */				\
+  { "I32", FMT_LEN_l, STD_EXT, NULL, 0, 0 },	\
+  /* 64-bit integer */				\
+  { "I64", FMT_LEN_ll, STD_EXT, NULL, 0, 0 },	\
+  /* size_t or ptrdiff_t */			\
+  { "I",  FMT_LEN_t,  STD_EXT, NULL, 0, 0 }
+
+#define TARGET_EXTRA_SCANF_LENGTH_SPECIFIERS	\
+  TARGET_EXTRA_PRINTF_LENGTH_SPECIFIERS
+
+#undef  NO_PROFILE_COUNTERS
+#define NO_PROFILE_COUNTERS	1

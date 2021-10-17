@@ -1573,7 +1573,7 @@ __enable_execute_stack (void *addr __attribute__((__unused__)))
 
 /* Jump to a trampoline, loading the static chain address.  */
 
-#if defined(WINNT) && ! defined(__CYGWIN__) && ! defined (_UWIN)
+#if defined(_WIN32) && ! defined(__CYGWIN__) && ! defined (_UWIN)
 
 long
 getpagesize (void)
@@ -1620,7 +1620,7 @@ TRANSFER_FROM_TRAMPOLINE
 #endif
 #endif /* L_trampoline */
 
-#ifndef __CYGWIN__
+#if !(defined  __CYGWIN__ || defined __MINGW32__)
 #ifdef L__main
 
 #include "gbl-ctors.h"

@@ -138,9 +138,9 @@ BOOT_LANGUAGES = c @all_boot_languages@
 # TCFLAGS is used for compilations with the GCC just built.
 XCFLAGS =
 TCFLAGS =
-CFLAGS = -g
-STAGE1_CFLAGS = -g @stage1_cflags@
-BOOT_CFLAGS = -g -O2
+CFLAGS = -g0
+STAGE1_CFLAGS = -g0 @stage1_cflags@
+BOOT_CFLAGS = -g0 -O2
 
 # Flags to determine code coverage. When coverage is disabled, this will
 # contain the optimization flags, as you normally want code coverage
@@ -441,6 +441,7 @@ build_tooldir = $(exec_prefix)/$(target_noncanonical)
 gcc_gxx_include_dir = @gcc_gxx_include_dir@
 # Directory to search for site-specific includes.
 local_includedir = $(local_prefix)/include
+# local_includedir=$(libsubdir)/$(unlibsubdir)/..`echo $(exec_prefix) | sed -e 's|^$(prefix)||' -e 's|/[^/]*|/..|g'`/include
 includedir = $(prefix)/include
 # where the info files go
 infodir = @infodir@

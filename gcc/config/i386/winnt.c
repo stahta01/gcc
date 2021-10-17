@@ -47,8 +47,7 @@ Software Foundation, 59 Temple Place - Suite 330, Boston, MA
 */
 
 static tree associated_type (tree);
-static const char * gen_stdcall_suffix (tree);
-static const char * gen_fastcall_suffix (tree);
+static tree gen_stdcall_or_fastcall_suffix (tree, bool);
 static int i386_pe_dllexport_p (tree);
 static int i386_pe_dllimport_p (tree);
 static void i386_pe_mark_dllexport (tree);
@@ -97,9 +96,14 @@ ix86_handle_dll_attribute (tree * pnode, tree name, tree args, int flags,
       /* Like MS, treat definition of dllimported variables and
 	 non-inlined functions on declaration as syntax errors.
 	 We allow the attribute for function definitions if declared
-	 inline, but just ignore it in i386_pe_dllimport_p.  */
-      if (TREE_CODE (node) == FUNCTION_DECL  && DECL_INITIAL (node)
-          && !DECL_INLINE (node))
+	 inline, but just ignore it.  */
+      if (TREE_CODE (node) == FUNCTION_DECL && DECL_DECLARED_INLINE_P (node))
+	{
+	  warning ("%Jinline function `%D' declared as dllimport: attribute ignored",
+		    node, node);
+	  *no_add_attrs = true;
+	}
+      else if (TREE_CODE (node) == FUNCTION_DECL && DECL_INITIAL (node))
 	{
 	  error ("%Jfunction `%D' definition is marked dllimport.", node, node);
 	  *no_add_attrs = true;
@@ -212,8 +216,7 @@ i386_pe_dllexport_p (tree decl)
 static int
 i386_pe_dllimport_p (tree decl)
 {
-  tree imp;
-  int context_imp = 0;
+  tree ctype;
 
   if (TREE_CODE (decl) == FUNCTION_DECL
       && TARGET_NOP_FUN_DLLIMPORT)
@@ -223,67 +226,14 @@ i386_pe_dllimport_p (tree decl)
       && TREE_CODE (decl) != FUNCTION_DECL)
     return 0;
 
-  imp = lookup_attribute ("dllimport", DECL_ATTRIBUTES (decl));
+  if (lookup_attribute ("dllimport", DECL_ATTRIBUTES (decl)))
+    return 1;
 
   /* Class members get the dllimport status of their class.  */
-  if (!imp && associated_type (decl))
-    {
-      imp = lookup_attribute ("dllimport",
-			      TYPE_ATTRIBUTES (associated_type (decl)));
-      if (imp)
-	context_imp = 1;
-    }
-
-  if (imp)
-    {
-      /* Don't mark defined functions as dllimport.  If the definition
-	 itself was marked with dllimport, than ix86_handle_dll_attribute
-	 reports an error. This handles the case when the definition
-	 overrides an earlier declaration.  */
-      if (TREE_CODE (decl) ==  FUNCTION_DECL && DECL_INITIAL (decl)
-	  && !DECL_INLINE (decl))
-	{
-	   /* Don't warn about artificial methods.  */
-	  if (!DECL_ARTIFICIAL (decl))
-	    warning ("%Jfunction '%D' is defined after prior declaration "
-		     "as dllimport: attribute ignored", decl, decl);
-	  return 0;
-	}
-
-      /* We ignore the dllimport attribute for inline member functions.
-	 This differs from MSVC behavior which treats it like GNUC
-	 'extern inline' extension.  */
-      else if (TREE_CODE (decl) == FUNCTION_DECL && DECL_INLINE (decl))
-        {
-	  if (extra_warnings)
-	    warning ("%Jinline function '%D' is declared as dllimport: "
-		     "attribute ignored.", decl, decl);
-	  return 0;
-	}
-
-      /*  Don't allow definitions of static data members in dllimport class,
-	  Just ignore attribute for vtable data.  */
-      else if (TREE_CODE (decl) == VAR_DECL
-	       && TREE_STATIC (decl) && TREE_PUBLIC (decl)
-	       && !DECL_EXTERNAL (decl) && context_imp)
-	{
-	  if (!DECL_VIRTUAL_P (decl))
-            error ("%Jdefinition of static data member '%D' of "
-		   "dllimport'd class.", decl, decl);
-	  return 0;
-	}
-
-      /* Since we can't treat a pointer to a dllimport'd symbol as a
-	 constant address, we turn off the attribute on C++ virtual
-	 methods to allow creation of vtables using thunks.  Don't mark
-	 artificial methods either (in associated_type, only COMDAT
-	 artificial method get import status from class context).  */
-      else if (TREE_CODE (TREE_TYPE (decl)) == METHOD_TYPE
-	       && (DECL_VIRTUAL_P (decl) || DECL_ARTIFICIAL (decl)))
-	return 0;
-
-      return 1;
-    }
+   ctype = associated_type (decl);
+   if (ctype && lookup_attribute ("dllimport",
+			           TYPE_ATTRIBUTES (ctype)))
+     return i386_pe_class_dllimport_p (decl);
 
   return 0;
 }
@@ -404,83 +354,56 @@ i386_pe_mark_dllimport (tree decl)
 }
 
 /* Return string which is the former assembler name modified with a
-   prefix consisting of FASTCALL_PREFIX and a suffix consisting of an
-   atsign (@) followed by the number of bytes of arguments.  */
-
-static const char *
-gen_fastcall_suffix (tree decl)
-{
-  int total = 0;
-  const char *asmname = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl));
-  char *newsym;
-
-  if (TYPE_ARG_TYPES (TREE_TYPE (decl)))
-    if (TREE_VALUE (tree_last (TYPE_ARG_TYPES (TREE_TYPE (decl))))
-        == void_type_node)
-      {
-	tree formal_type = TYPE_ARG_TYPES (TREE_TYPE (decl));
-
-	/* Quit if we hit an incomplete type.  Error is reported
-	   by convert_arguments in c-typeck.c or cp/typeck.c.  */
-	while (TREE_VALUE (formal_type) != void_type_node
-	       && COMPLETE_TYPE_P (TREE_VALUE (formal_type)))	
-	  {
-	    int parm_size
-	      = TREE_INT_CST_LOW (TYPE_SIZE (TREE_VALUE (formal_type)));
-	    /* Must round up to include padding.  This is done the same
-	       way as in store_one_arg.  */
-	    parm_size = ((parm_size + PARM_BOUNDARY - 1)
-			 / PARM_BOUNDARY * PARM_BOUNDARY);
-	    total += parm_size;
-	    formal_type = TREE_CHAIN (formal_type);
-	  }
-      }
-
-  /* Assume max of 8 base 10 digits in the suffix.  */
-  newsym = xmalloc (1 + strlen (asmname) + 1 + 8 + 1);
-  sprintf (newsym, "%c%s@%d", FASTCALL_PREFIX, asmname, total/BITS_PER_UNIT);
-  return IDENTIFIER_POINTER (get_identifier (newsym));
-}
-
-/* Return string which is the former assembler name modified with a
    suffix consisting of an atsign (@) followed by the number of bytes of
-   arguments */
+   arguments.  If FASTCALL is true, also add the FASTCALL_PREFIX.  */
 
-static const char *
-gen_stdcall_suffix (tree decl)
+static tree
+gen_stdcall_or_fastcall_suffix (tree decl, bool fastcall)
 {
   int total = 0;
   /* ??? This probably should use XSTR (XEXP (DECL_RTL (decl), 0), 0) instead
      of DECL_ASSEMBLER_NAME.  */
   const char *asmname = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl));
   char *newsym;
+  char *p;
+  tree formal_type;
 
-  if (TYPE_ARG_TYPES (TREE_TYPE (decl)))
-    if (TREE_VALUE (tree_last (TYPE_ARG_TYPES (TREE_TYPE (decl))))
-        == void_type_node)
-      {
-	tree formal_type = TYPE_ARG_TYPES (TREE_TYPE (decl));
+  /* Do not change the identifier if a verbatim asmspec or already done. */
+  if (*asmname == '*' || strchr (asmname, '@'))
+    return DECL_ASSEMBLER_NAME (decl);
 
-	/* Quit if we hit an incomplete type.  Error is reported
-	   by convert_arguments in c-typeck.c or cp/typeck.c.  */
-	while (TREE_VALUE (formal_type) != void_type_node
-	       && COMPLETE_TYPE_P (TREE_VALUE (formal_type)))	
-	  {
-	    int parm_size
-	      = TREE_INT_CST_LOW (TYPE_SIZE (TREE_VALUE (formal_type)));
+  formal_type = TYPE_ARG_TYPES (TREE_TYPE (decl));
+  if (formal_type != NULL_TREE)
+    {
+      /* These attributes are ignored for variadic functions in
+	 i386.c:ix86_return_pops_args. For compatibility with MS
+         compiler do not add @0 suffix here.  */ 
+      if (TREE_VALUE (tree_last (formal_type)) != void_type_node)
+        return DECL_ASSEMBLER_NAME (decl);
+
+      /* Quit if we hit an incomplete type.  Error is reported
+         by convert_arguments in c-typeck.c or cp/typeck.c.  */
+      while (TREE_VALUE (formal_type) != void_type_node
+	     && COMPLETE_TYPE_P (TREE_VALUE (formal_type)))	
+	{
+	  int parm_size
+	    = TREE_INT_CST_LOW (TYPE_SIZE (TREE_VALUE (formal_type)));
 	    /* Must round up to include padding.  This is done the same
 	       way as in store_one_arg.  */
-	    parm_size = ((parm_size + PARM_BOUNDARY - 1)
-			 / PARM_BOUNDARY * PARM_BOUNDARY);
-	    total += parm_size;
-	    formal_type = TREE_CHAIN (formal_type);
-	  }
-      }
+	  parm_size = ((parm_size + PARM_BOUNDARY - 1)
+		       / PARM_BOUNDARY * PARM_BOUNDARY);
+	  total += parm_size;
+	  formal_type = TREE_CHAIN (formal_type);\
+	}
+     }
 
   /* Assume max of 8 base 10 digits in the suffix.  */
-  newsym = xmalloc (strlen (asmname) + 1 + 8 + 1);
-  sprintf (newsym, "%s@%d", asmname, total/BITS_PER_UNIT);
-  return IDENTIFIER_POINTER (get_identifier (newsym));
+  newsym = alloca (1 + strlen (asmname) + 1 + 8 + 1);
+  p = newsym;
+  if (fastcall)
+    *p++ = FASTCALL_PREFIX;
+  sprintf (p, "%s@%d", asmname, total/BITS_PER_UNIT);
+  return get_identifier (newsym);
 }
 
 void
@@ -488,16 +411,29 @@ i386_pe_encode_section_info (tree decl, rtx rtl, int first)
 {
   default_encode_section_info (decl, rtl, first);
 
-  if (TREE_CODE (decl) == FUNCTION_DECL)
+  if (first && TREE_CODE (decl) == FUNCTION_DECL)
     {
-      if (lookup_attribute ("stdcall",
-			    TYPE_ATTRIBUTES (TREE_TYPE (decl))))
-        XEXP (DECL_RTL (decl), 0) =
-	  gen_rtx (SYMBOL_REF, Pmode, gen_stdcall_suffix (decl));
-      else if (lookup_attribute ("fastcall",
-				 TYPE_ATTRIBUTES (TREE_TYPE (decl))))
-        XEXP (DECL_RTL (decl), 0) =
-	  gen_rtx (SYMBOL_REF, Pmode, gen_fastcall_suffix (decl));
+      tree type_attributes = TYPE_ATTRIBUTES (TREE_TYPE (decl));
+      tree newid = NULL_TREE;
+
+      if (lookup_attribute ("stdcall", type_attributes))
+	newid = gen_stdcall_or_fastcall_suffix (decl, false);
+      else if (lookup_attribute ("fastcall", type_attributes))
+	newid = gen_stdcall_or_fastcall_suffix (decl, true);
+      if (newid != NULL_TREE) 	
+	{
+	  rtx rtlname = XEXP (rtl, 0);
+	  if (GET_CODE (rtlname) == MEM)
+	    rtlname = XEXP (rtlname, 0);
+	  XSTR (rtlname, 0) = IDENTIFIER_POINTER (newid);
+#if 0
+	  /* These attributes must be present on first declaration,
+	     change_decl_assembler_name will warn if they are added
+	     later and the decl has been referenced, but duplicate_decls
+	     should catch the mismatch before this is called.  */ 
+          change_decl_assembler_name (decl, newid);
+#endif
+	}
     }
 
   /* Mark the decl so we can tell from the rtl whether the object is
@@ -559,7 +495,7 @@ i386_pe_strip_name_encoding (const char *str)
   return str;
 }
 
-/* Also strip the stdcall suffix.  */
+/* Also strip the fastcall prefix and stdcall suffix.  */
 
 const char *
 i386_pe_strip_name_encoding_full (const char *str)
@@ -567,6 +503,11 @@ i386_pe_strip_name_encoding_full (const char *str)
   const char *p;
   const char *name = i386_pe_strip_name_encoding (str);
 
+  /* Strip leading '@' on fastcall symbols.  */
+  if (*name == '@')
+    name++;
+
+  /* Strip trailing '@n'.  */
   p = strchr (name, '@');
   if (p)
     return ggc_alloc_string (name, p - name);
@@ -598,9 +539,9 @@ void i386_pe_output_labelref (FILE *stream, const char *name)
         }
     }
   else if ((name[0] == FASTCALL_PREFIX)
-           || (strncmp (name, DLL_EXPORT_PREFIX, strlen (DLL_EXPORT_PREFIX)
+           || (strncmp (name, DLL_EXPORT_PREFIX, strlen (DLL_EXPORT_PREFIX))
 	       == 0
-	       && name[strlen (DLL_EXPORT_PREFIX)] == FASTCALL_PREFIX)))
+	       && name[strlen (DLL_EXPORT_PREFIX)] == FASTCALL_PREFIX))
     /* A fastcall symbol.  */
     {
       fprintf (stream, "%s",
@@ -764,13 +705,14 @@ i386_pe_declare_function_type (FILE *file, const char *name, int public)
 
 /* Keep a list of external functions.  */
 
-struct extern_list
+struct extern_list GTY(())
 {
   struct extern_list *next;
+  tree decl;
   const char *name;
 };
 
-static struct extern_list *extern_head;
+static GTY(()) struct extern_list *extern_head;
 
 /* Assemble an external function reference.  We need to keep a list of
    these, so that we can output the function types at the end of the
@@ -779,26 +721,27 @@ static struct extern_list *extern_head;
    for it then.  */
 
 void
-i386_pe_record_external_function (const char *name)
+i386_pe_record_external_function (tree decl, const char *name)
 {
   struct extern_list *p;
 
-  p = (struct extern_list *) xmalloc (sizeof *p);
+  p = (struct extern_list *) ggc_alloc (sizeof *p);
   p->next = extern_head;
+  p->decl = decl;
   p->name = name;
   extern_head = p;
 }
 
 /* Keep a list of exported symbols.  */
 
-struct export_list
+struct export_list GTY(())
 {
   struct export_list *next;
   const char *name;
   int is_data;		/* used to type tag exported symbols.  */
 };
 
-static struct export_list *export_head;
+static GTY(()) struct export_list *export_head;
 
 /* Assemble an export symbol entry.  We need to keep a list of
    these, so that we can output the export list at the end of the
@@ -811,7 +754,7 @@ i386_pe_record_exported_symbol (const char *name, int is_data)
 {
   struct export_list *p;
 
-  p = (struct export_list *) xmalloc (sizeof *p);
+  p = (struct export_list *) ggc_alloc (sizeof *p);
   p->next = export_head;
   p->name = name;
   p->is_data = is_data;
@@ -828,21 +771,19 @@ i386_pe_file_end (void)
   struct extern_list *p;
 
   ix86_file_end ();
-
-  for (p = extern_head; p != NULL; p = p->next)
-    {
-      tree decl;
-
-      decl = get_identifier (p->name);
-
-      /* Positively ensure only one declaration for any given symbol.  */
-      if (! TREE_ASM_WRITTEN (decl) && TREE_SYMBOL_REFERENCED (decl))
-	{
-	  TREE_ASM_WRITTEN (decl) = 1;
-	  i386_pe_declare_function_type (asm_out_file, p->name,
-					 TREE_PUBLIC (decl));
-	}
-    }
+  if (write_symbols != SDB_DEBUG)
+    for (p = extern_head; p != NULL; p = p->next)
+      {
+	tree decl = p->decl;
+	/* Positively ensure only one declaration for any given symbol.  */
+	if (! TREE_ASM_WRITTEN (decl)
+	    && TREE_SYMBOL_REFERENCED (DECL_ASSEMBLER_NAME (decl)))
+	  {
+	    TREE_ASM_WRITTEN (decl) = 1;
+	    i386_pe_declare_function_type (asm_out_file, p->name,
+					   TREE_PUBLIC (decl));
+	  }
+      }
 
   if (export_head)
     {
@@ -856,3 +797,5 @@ i386_pe_file_end (void)
 	}
     }
 }
+
+#include "gt-winnt.h"

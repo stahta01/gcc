@@ -287,4 +287,8 @@ extern int ggc_min_expand_heuristic (void);
 extern int ggc_min_heapsize_heuristic (void);
 extern void init_ggc_heuristics (void);
 
+#if defined(_WIN32) && ! defined(__CYGWIN__) && ! defined (_UWIN)
+#define getpagesize() 4096
+#endif
+
 #endif

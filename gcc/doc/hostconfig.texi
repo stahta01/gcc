@@ -192,7 +192,15 @@ initialization when a compilation driver is being initialized.
 Define this macro if the host system has a small limit on the total
 size of an argument vector.  This causes the driver to take more care
 not to pass unnecessary arguments to subprocesses.
+
+@item HOST_LL_PREFIX
+Define this macro to be a C string representing the printf format prefix
+to specify output of long long types on your host machine. Hosts using
+the MS C runtime libs use the non-standard @samp{I64} prefix. If you do
+not define this macro, GCC will use the standard @samp{ll} prefix to
+format the printing of long long types.
 @end ftable
+
 
 In addition, if @command{configure} generates an incorrect definition of
 any of the macros in @file{auto-host.h}, you can override that

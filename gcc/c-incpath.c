@@ -306,13 +306,18 @@ add_path (char *path, int chain, int cxx_aware)
   struct cpp_dir *p;
 
 #if defined (HAVE_DOS_BASED_FILE_SYSTEM)
-  /* Convert all backslashes to slashes.  The native CRT stat()
-     function does not recognise a directory that ends in a backslash
-     (unless it is a drive root dir, such "c:\").  Forward slashes,
-     trailing or otherwise, cause no problems for stat().  */
+  /* Remove unnecessary trailing slashes.  On some versions of MS
+     Windows, trailing  _forward_ slashes cause no problems for stat().
+     On newer versions, stat() does not recognise a directory that ends
+     in a '\\' or '/', unless it is a drive root dir, such "c:\").  */
   char* c;
   for (c = path; *c; c++)
     if (*c == '\\') *c = '/';
+  /* Strip trailing slashes, but preserve the lead '/' or a slash
+     that follows a ':' such as lead "c:/" or "//./c:/" */
+  c--;
+  for (; c > path && c[0] == '/' && c[-1] != ':'; c--)
+    *c = '\0';
 #endif
 
   p = xmalloc (sizeof (struct cpp_dir));
