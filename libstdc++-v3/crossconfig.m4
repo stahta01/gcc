@@ -234,6 +234,7 @@ case "${host}" in
     GLIBCXX_CHECK_LINKER_FEATURES
     GLIBCXX_CHECK_COMPLEX_MATH_SUPPORT
     GLIBCXX_CHECK_WCHAR_T_SUPPORT
+    AC_DEFINE(_GLIBCXX_USE_LFS)
     ;;
   *-netbsd*)
     AC_CHECK_HEADERS([nan.h ieeefp.h endian.h sys/isa_defs.h \

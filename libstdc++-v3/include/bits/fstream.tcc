@@ -500,7 +500,7 @@ namespace std
      {
        // Clear out pback buffer before going on to the real deal...
        streamsize __ret = 0;
-       if (this->_M_pback_init)
+       if (_M_pback_init)
 	 {
 	   if (__n > 0 && this->gptr() == this->eback())
 	     {
@@ -515,9 +515,8 @@ namespace std
        // Optimization in the always_noconv() case, to be generalized in the
        // future: when __n > __buflen we read directly instead of using the
        // buffer repeatedly.
-       const bool __testin = this->_M_mode & ios_base::in;
-       const streamsize __buflen = this->_M_buf_size > 1 ? this->_M_buf_size - 1
-	                                                 : 1;
+       const bool __testin = _M_mode & ios_base::in;
+       const streamsize __buflen = _M_buf_size > 1 ? _M_buf_size - 1 : 1;
        if (__n > __buflen && __check_facet(_M_codecvt).always_noconv()
 	   && __testin && !_M_writing)
 	 {

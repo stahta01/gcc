@@ -324,7 +324,19 @@ make_alias_for_thunk (tree function)
   SET_DECL_ASSEMBLER_NAME (alias, DECL_NAME (alias));
   TREE_SYMBOL_REFERENCED (DECL_ASSEMBLER_NAME (alias)) = 1;
   if (!flag_syntax_only)
+    {
+      /* Using DECL_ASSEMBLER_NAME to get the identifier for the alias
+	 target loses any decoration that targetm.encode_section_info
+	 may have added.  Use the RTL string instead.  */
+      rtx rtlname = DECL_RTL (function);
+      my_friendly_assert (GET_CODE (rtlname) == MEM, 20040705);
+      rtlname = XEXP (rtlname, 0);
+      my_friendly_assert (GET_CODE (rtlname) == SYMBOL_REF, 20040705);
+      assemble_alias (alias, get_identifier(XSTR (rtlname, 0)));
+   }
+/*
     assemble_alias (alias, DECL_ASSEMBLER_NAME (function));
+*/
   return alias;
 }
 #endif

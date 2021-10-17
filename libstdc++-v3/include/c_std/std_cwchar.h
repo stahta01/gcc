@@ -137,7 +137,7 @@ namespace std
 #undef wprintf
 #undef wscanf
 
-#if _GLIBCXX_USE_WCHAR_T
+#if _GLIBCXX_USE_WCHAR_T || _GLIBCXX_USE_WSTRING
 namespace std
 {
   using ::wint_t;
@@ -211,7 +211,7 @@ namespace std
   using ::wcspbrk;
 
   inline wchar_t*
-  wcspbrk(wchar_t* __s1, wchar_t* __s2)
+  wcspbrk(wchar_t* __s1, const wchar_t* __s2)
   { return wcspbrk(const_cast<const wchar_t*>(__s1), __s2); }
 
   using ::wcsrchr;

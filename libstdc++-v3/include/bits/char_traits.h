@@ -296,7 +296,7 @@ namespace std
   };
 
 
-#ifdef _GLIBCXX_USE_WCHAR_T
+#if defined (_GLIBCXX_USE_WCHAR_T) || defined (_GLIBCXX_USE_WSTRING)
   /// 21.1.3.2  char_traits specializations
   template<>
     struct char_traits<wchar_t>
@@ -304,10 +304,10 @@ namespace std
       typedef wchar_t           char_type;
       typedef wint_t            int_type;
       typedef streamoff         off_type;
-      typedef wstreampos        pos_type;
-      typedef mbstate_t         state_type;
-
-      static void
+      typedef wstreampos 	pos_type;
+      typedef mbstate_t 	state_type;
+      
+      static void 
       assign(char_type& __c1, const char_type& __c2)
       { __c1 = __c2; }
 

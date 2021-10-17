@@ -1474,6 +1474,11 @@ import_export_vtable (tree decl, tree type, int final)
 	{
 	  TREE_PUBLIC (decl) = 1;
 	  DECL_EXTERNAL (decl) = 1;
+	  /* If found and the class has dllimport attribute, commit to
+	     marking the vtable as dllimport, We don't want to change
+	     linkage when maybe_emit_vtable  calls this with final true. */
+	  if (lookup_attribute ("dllimport", TYPE_ATTRIBUTES (type))) 
+	    DECL_INTERFACE_KNOWN (decl) = 1;
 	}
     }
 }
@@ -1734,13 +1739,21 @@ import_export_tinfo (tree decl, tree type, bool is_in_library)
   
   if (IS_AGGR_TYPE (type))
     import_export_class (type);
-      
+
   if (IS_AGGR_TYPE (type) && CLASSTYPE_INTERFACE_KNOWN (type)
       && TYPE_POLYMORPHIC_P (type)
       /* If -fno-rtti, we're not necessarily emitting this stuff with
 	 the class, so go ahead and emit it now.  This can happen when
 	 a class is used in exception handling.  */
-      && flag_rtti)
+      && flag_rtti
+#ifdef MULTIPLE_SYMBOL_SPACES
+     /* Do not import tinfo nodes if the class has dllimport attribute.
+	Dllimports do not have a constant address at compile time, so
+	static initialization of tables with RTTI fields is a problem.
+	Set to comdat instead.   */
+      && !lookup_attribute ("dllimport", TYPE_ATTRIBUTES (type))
+#endif
+      )
     {
       DECL_NOT_REALLY_EXTERN (decl) = !CLASSTYPE_INTERFACE_ONLY (type);
       DECL_COMDAT (decl) = 0;

@@ -45,4 +45,11 @@
 #undef NOMINMAX
 #define NOMINMAX 1
 
+// mingw32 local hack: Override  _GLIBCXX_USE_WCHAR_T for wstring
+#define _GLIBCXX_USE_WSTRING 1
+
+// mingw32 local hack: Cast long double to doubles to workaround
+// printf bug.	
+#define _GLIBCXX_NO_LONG_DOUBLE_IO 1
+
 #endif

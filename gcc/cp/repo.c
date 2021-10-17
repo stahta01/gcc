@@ -1,5 +1,5 @@
 /* Code to maintain a C++ template repository.
-   Copyright (C) 1995, 1996, 1997, 1998, 2000, 2001, 2002, 2003
+   Copyright (C) 1995, 1996, 1997, 1998, 2000, 2001, 2002, 2003, 2004
    Free Software Foundation, Inc.
    Contributed by Jason Merrill (jason@cygnus.com)
 
@@ -53,8 +53,8 @@ static const char *old_args, *old_dir, *old_main;
 
 static struct obstack temporary_obstack;
 
-#define IDENTIFIER_REPO_USED(NODE)   (TREE_LANG_FLAG_3 (NODE))
-#define IDENTIFIER_REPO_CHOSEN(NODE) (TREE_LANG_FLAG_4 (NODE))
+#define IDENTIFIER_REPO_USED(NODE)   (TREE_LANG_FLAG_5 (NODE))
+#define IDENTIFIER_REPO_CHOSEN(NODE) (TREE_LANG_FLAG_6 (NODE))
 
 #if 0
 /* Record the flags used to compile this translation unit.  */
@@ -218,7 +218,10 @@ extract_string (char **pp)
 	break;
       ++p;
       if (backquote)
-	obstack_1grow (&temporary_obstack, c);
+	{
+	  obstack_1grow (&temporary_obstack, c);
+	  backquote = 0;
+	}
       else if (! inside && c == ' ')
 	break;
       else if (! inside && c == '\\')
@@ -249,7 +252,7 @@ get_base_filename (const char *filename)
 	output = extract_string (&p);
       else if (strcmp (q, "-c") == 0)
 	compiling = 1;
-      }
+    }
 
   if (compiling && output)
     return output;

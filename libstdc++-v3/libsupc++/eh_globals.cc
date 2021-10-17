@@ -34,15 +34,29 @@
 #include "bits/c++config.h"
 #include "bits/gthr.h"
 
+#if defined (__MINGW32__ ) || defined (__CYGWIN__)
+#include "config/i386/w32-shared-ptr.h"
+#endif
+
 using namespace __cxxabiv1;
 
 
 // Single-threaded fallback buffer.
+
+#if !(defined (__MINGW32__ ) || defined (__CYGWIN__))
 static __cxa_eh_globals globals_static;
+#else
+#define globals_static  (*(struct __cxa_eh_globals*)(&__w32_sharedptr->eh_globals_static))
+#endif
 
 #if __GTHREADS
+#if !(defined (__MINGW32__ ) || defined (__CYGWIN__))
 static __gthread_key_t globals_key;
 static int use_thread_key = -1;
+#else
+#define globals_key (__w32_sharedptr->eh_globals_key)
+#define use_thread_key (__w32_sharedptr->eh_globals_use_thread_key)
+#endif
 
 static void
 get_globals_dtor (void *ptr)
@@ -71,10 +85,17 @@ get_globals_init ()
 static void
 get_globals_init_once ()
 {
+#if !(defined (__MINGW32__ ) || defined (__CYGWIN__))
   static __gthread_once_t once = __GTHREAD_ONCE_INIT;
+#else
+#define once (__w32_sharedptr->eh_globals_once)
+#endif
   if (__gthread_once (&once, get_globals_init) != 0
       || use_thread_key < 0)
     use_thread_key = 0;
+#if defined (__MINGW32__ ) || defined (__CYGWIN__)
+#undef once
+#endif
 }
 #endif
 

@@ -50,7 +50,12 @@ __cxxabiv1::__terminate (std::terminate_handler handler)
 void
 std::terminate ()
 {
-  __terminate (__terminate_handler);
+#if 0 // (defined (__MINGW32__) || defined (__CYGWIN__))
+  if (__terminate_handler == NULL )
+    __terminate (__gnu_cxx::__verbose_terminate_handler);
+  else
+#endif
+    __terminate (__terminate_handler);
 }
 
 void
@@ -63,7 +68,12 @@ __cxxabiv1::__unexpected (std::unexpected_handler handler)
 void
 std::unexpected ()
 {
-  __unexpected (__unexpected_handler);
+#if  0 // (defined (__MINGW32__) || defined (__CYGWIN__))
+  if (__unexpected_handler == NULL)
+    std::terminate();
+  else
+#endif
+    __unexpected (__unexpected_handler);
 }
 
 std::terminate_handler

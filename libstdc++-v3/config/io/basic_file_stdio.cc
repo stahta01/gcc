@@ -329,7 +329,7 @@ namespace std
   streamsize
   __basic_file<char>::showmanyc()
   {
-#ifdef FIONREAD
+#if defined (FIONREAD) && !defined (_GNU_H_WINDOWS32_SOCKETS)
     // Pipes and sockets.    
 #ifdef _GLIBCXX_FIONREAD_TAKES_OFF_T
     off_t __num = 0;
@@ -352,10 +352,21 @@ namespace std
 
 #if defined(_GLIBCXX_HAVE_S_ISREG) || defined(_GLIBCXX_HAVE_S_IFREG)
     // Regular files.
+#if defined (_GLIBCXX_USE_LFS) && defined (__MINGW32__)
+    struct _stati64 __buffer;
+    int __ret = _fstati64 (this->fd(), &__buffer);
+    if (!__ret && _GLIBCXX_ISREG(__buffer.st_mode))
+      {
+	const streamoff __off = __buffer.st_size - lseek64(this->fd(), 0,
+							   ios_base::cur);
+	return std::min(__off, streamoff(numeric_limits<streamsize>::max()));
+      }
+#else
     struct stat __buffer;
     int __ret = fstat(this->fd(), &__buffer);
     if (!__ret && _GLIBCXX_ISREG(__buffer.st_mode))
-	return __buffer.st_size - lseek(this->fd(), 0, ios_base::cur);
+      return __buffer.st_size - lseek(this->fd(), 0, ios_base::cur);
+#endif
 #endif
     return 0;
   }

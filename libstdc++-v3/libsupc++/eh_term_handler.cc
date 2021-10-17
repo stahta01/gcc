@@ -41,6 +41,7 @@
 # include <cstdlib>
 #endif
 
+#if !(defined (__MINGW32__) || defined (__CYGWIN__))
 /* The current installed user handler.  */
 std::terminate_handler __cxxabiv1::__terminate_handler =
 #if _GLIBCXX_HOSTED
@@ -49,3 +50,4 @@ std::terminate_handler __cxxabiv1::__terminate_handler =
 	std::abort;
 #endif
 
+#endif

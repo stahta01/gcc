@@ -325,12 +325,12 @@ namespace std
 	__found_grouping.reserve(32);
       int __sep_pos = 0;
       const char_type* __lit_zero = __lit + __num_base::_S_izero;
-      const char_type* __q;
       while (__beg != __end)
         {
 	  // According to 22.2.2.1.2, p8-9, first look for thousands_sep
 	  // and decimal_point.
 	  const char_type __c = *__beg;
+	  const char_type* __q = __traits_type::find(__lit_zero, 10, __c);
           if (__lc->_M_use_grouping && __c == __lc->_M_thousands_sep)
 	    {
 	      if (!__found_dec && !__found_sci)
@@ -368,7 +368,7 @@ namespace std
 	      else
 		break;
 	    }
-          else if (__q = __traits_type::find(__lit_zero, 10, __c))
+          else if (__q != 0)
 	    {
 	      __xtrc += __num_base::_S_atoms_in[__q - __lit];
 	      __found_mantissa = true;
@@ -509,7 +509,6 @@ namespace std
 	bool __overflow = false;
 	_ValueT __result = 0;
 	const char_type* __lit_zero = __lit + __num_base::_S_izero;
-	const char_type* __q;
 	if (__negative)
 	  {
 	    const _ValueT __min = numeric_limits<_ValueT>::min() / __base;
@@ -518,6 +517,8 @@ namespace std
 		// According to 22.2.2.1.2, p8-9, first look for thousands_sep
 		// and decimal_point.
 		const char_type __c = *__beg;
+		const char_type* __q = __traits_type::find(__lit_zero, 
+							   __len, __c);
 		if (__lc->_M_use_grouping && __c == __lc->_M_thousands_sep)
 		  {
 		    // NB: Thousands separator at the beginning of a string
@@ -535,7 +536,7 @@ namespace std
 		  }
 		else if (__c == __lc->_M_decimal_point)
 		  break;
-		else if (__q = __traits_type::find(__lit_zero, __len, __c))
+		else if (__q != 0)
 		  {
 		    int __digit = __q - __lit_zero;
 		    if (__digit > 15)
@@ -563,6 +564,8 @@ namespace std
 	    for (; __beg != __end; ++__beg)
 	      {
 		const char_type __c = *__beg;
+		const char_type* __q = __traits_type::find(__lit_zero, 
+							   __len, __c);
 		if (__lc->_M_use_grouping && __c == __lc->_M_thousands_sep)
 		  {
 		    if (__sep_pos)
@@ -578,7 +581,7 @@ namespace std
 		  }
 		else if (__c == __lc->_M_decimal_point)
 		  break;
-		else if (__q = __traits_type::find(__lit_zero, __len, __c))
+		else if (__q != 0)
 		  {
 		    int __digit = __q - __lit_zero;
 		    if (__digit > 15)
@@ -765,7 +768,13 @@ namespace std
       string __xtrc;
       __xtrc.reserve(32);
       __beg = _M_extract_float(__beg, __end, __io, __err, __xtrc);
+#if defined (GLIBCXX_NO_LONG_DOUBLE_IO) && !defined(_GLIBCXX_USE_C99)
+      double __vd;
+      std::__convert_to_v(__xtrc.c_str(), __vd, __err, _S_get_c_locale());
+      __v = static_cast<long double>(__vd);	
+#else
       std::__convert_to_v(__xtrc.c_str(), __v, __err, _S_get_c_locale());
+#endif
       return __beg;
     }
 
@@ -1111,8 +1120,8 @@ namespace std
       // Replace decimal point.
       const _CharT __cdec = __ctype.widen('.');
       const _CharT __dec = __lc->_M_decimal_point;
-      const _CharT* __p;
-      if (__p = char_traits<_CharT>::find(__ws, __len, __cdec))
+      const _CharT* __p = char_traits<_CharT>::find(__ws, __len, __cdec);
+      if (__p)
 	__ws[__p - __ws] = __dec;
 
       // Add grouping, if necessary.
@@ -1220,7 +1229,14 @@ namespace std
     num_put<_CharT, _OutIter>::
     do_put(iter_type __s, ios_base& __io, char_type __fill,
 	   long double __v) const
-    { return _M_insert_float(__s, __io, __fill, 'L', __v); }
+    {
+#ifdef  _GLIBCXX_NO_LONG_DOUBLE_IO
+      return _M_insert_float(__s, __io, __fill, char_type(),
+			      static_cast<double>(__v));
+#else
+      return _M_insert_float(__s, __io, __fill, 'L', __v);
+#endif
+    }
 
   template<typename _CharT, typename _OutIter>
     _OutIter
@@ -1285,7 +1301,6 @@ namespace std
 	__res.reserve(32);
 
 	const char_type* __lit_zero = __lit + money_base::_S_zero;
-	const char_type* __q;
 	const money_base::pattern __p = __lc->_M_neg_format;	
 	for (int __i = 0; __i < 4 && __testvalid; ++__i)
 	  {
@@ -1347,35 +1362,40 @@ namespace std
 		// Extract digits, remove and stash away the
 		// grouping of found thousands separators.
 		for (; __beg != __end; ++__beg)
-		  if (__q = __traits_type::find(__lit_zero, 10, *__beg))
-		    {
-		      __res += money_base::_S_atoms[__q - __lit];
-		      ++__n;
-		    }
-		  else if (*__beg == __lc->_M_decimal_point && !__testdecfound)
-		    {
-		      __last_pos = __n;
-		      __n = 0;
-		      __testdecfound = true;
-		    }
-		  else if (__lc->_M_use_grouping
-			   && *__beg == __lc->_M_thousands_sep
-			   && !__testdecfound)
-		    {
-		      if (__n)
-			{
-			  // Mark position for later analysis.
-			  __grouping_tmp += static_cast<char>(__n);
-			  __n = 0;
-			}
-		      else
-			{
-			  __testvalid = false;
-			  break;
-			}
-		    }
-		  else
-		    break;
+		  {
+		    const char_type* __q = __traits_type::find(__lit_zero, 
+							       10, *__beg);
+		    if (__q != 0)
+		      {
+			__res += money_base::_S_atoms[__q - __lit];
+			++__n;
+		      }
+		    else if (*__beg == __lc->_M_decimal_point 
+			     && !__testdecfound)
+		      {
+			__last_pos = __n;
+			__n = 0;
+			__testdecfound = true;
+		      }
+		    else if (__lc->_M_use_grouping
+			     && *__beg == __lc->_M_thousands_sep
+			     && !__testdecfound)
+		      {
+			if (__n)
+			  {
+			    // Mark position for later analysis.
+			    __grouping_tmp += static_cast<char>(__n);
+			    __n = 0;
+			  }
+			else
+			  {
+			    __testvalid = false;
+			    break;
+			  }
+		      }
+		    else
+		      break;
+		  }
 		if (__res.empty())
 		  __testvalid = false;
 		break;
@@ -1464,7 +1484,13 @@ namespace std
 	__beg = _M_extract<true>(__beg, __end, __io, __err, __str);
       else
 	__beg = _M_extract<false>(__beg, __end, __io, __err, __str);
+#if defined _GLIBCXX_NO_LONG_DOUBLE_IO  && !defined (_GLIBCXX_USE_C99)
+      double __dunits;
+      std::__convert_to_v(__str.c_str(), __dunits, __err, _S_get_c_locale());
+      __units = static_cast<long double>(__dunits);	
+#else  //  _GLIBCXX_NO_LONG_DOUBLE_IO && !defined (_GLIBCXX_USE_C99)
       std::__convert_to_v(__str.c_str(), __units, __err, _S_get_c_locale());
+#endif  //  _GLIBCXX_NO_LONG_DOUBLE_IO
       return __beg;
     }
 
@@ -1667,6 +1693,32 @@ namespace std
     {
       const locale __loc = __io.getloc();
       const ctype<_CharT>& __ctype = use_facet<ctype<_CharT> >(__loc);
+#ifdef  _GLIBCXX_NO_LONG_DOUBLE_IO
+      double __dunits = static_cast<double>(__units);
+#ifdef _GLIBCXX_USE_C99
+      // First try a buffer perhaps big enough.
+      int __cs_size = 64;
+      char* __cs = static_cast<char*>(__builtin_alloca(__cs_size));
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 328. Bad sprintf format modifier in money_put<>::do_put()
+      int __len = std::__convert_from_v(__cs, __cs_size, "%.0f", __dunits,
+					_S_get_c_locale(), 0);
+      // If the buffer was not large enough, try again with the correct size.
+      if (__len >= __cs_size)
+	{
+	  __cs_size = __len + 1;
+	  __cs = static_cast<char*>(__builtin_alloca(__cs_size));
+	  __len = std::__convert_from_v(__cs, __cs_size, "%.*f", __dunits,
+					_S_get_c_locale(), 0);
+	}
+#else
+      // max_exponent10 + 1 for the integer part, + 2 for sign and '\0'.
+      const int __cs_size = numeric_limits<long double>::max_exponent10 + 3;
+      char* __cs = static_cast<char*>(__builtin_alloca(__cs_size));
+      int __len = std::__convert_from_v(__cs, 0, "%.*f", __dunits,
+					_S_get_c_locale(), 0);
+#endif
+#else // _GLIBCXX_NO_LONG_DOUBLE_IO
 #ifdef _GLIBCXX_USE_C99
       // First try a buffer perhaps big enough.
       int __cs_size = 64;
@@ -1690,6 +1742,7 @@ namespace std
       int __len = std::__convert_from_v(__cs, 0, "%.*Lf", __units,
 					_S_get_c_locale(), 0);
 #endif
+#endif  // _GLIBCXX_NO_LONG_DOUBLE_IO
       _CharT* __ws = static_cast<_CharT*>(__builtin_alloca(sizeof(_CharT)
 							   * __cs_size));
       __ctype.widen(__cs, __cs + __len, __ws);

@@ -29,6 +29,7 @@
 
 #include "unwind-cxx.h"
 
+#if !(defined  (__MINGW32__) || defined (__CYGWIN__))
 /* The current installed user handler.  */
 std::unexpected_handler __cxxabiv1::__unexpected_handler = std::terminate;
-
+#endif

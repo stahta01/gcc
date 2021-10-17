@@ -9312,11 +9312,11 @@ cp_parser_elaborated_type_specifier (cp_parser* parser,
 	     declaration context.  */
 
  	  /* Warn about attributes. They are ignored.  */
- 	  if (attributes)
+ 	  if (attributes && extra_warnings)
 	    warning ("type attributes are honored only at type definition");
 
-	  type = xref_tag (tag_type, identifier, 
-			   (is_friend 
+	  type = xref_tag (tag_type, identifier,
+			   (is_friend
 			    || !is_declaration
 			    || cp_lexer_next_token_is_not (parser->lexer, 
 							   CPP_SEMICOLON)),
@@ -12028,7 +12028,7 @@ cp_parser_class_specifier (cp_parser* parser)
    body of the class.  */
 
 static tree
-cp_parser_class_head (cp_parser* parser, 
+cp_parser_class_head (cp_parser* parser,
 		      bool* nested_name_specifier_p,
 		      tree *attributes_p)
 {

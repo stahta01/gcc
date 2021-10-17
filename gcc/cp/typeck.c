@@ -2447,9 +2447,10 @@ build_function_call (tree function, tree params)
 
       /* Differs from default_conversion by not setting TREE_ADDRESSABLE
 	 (because calling an inline function does not mean the function
-	 needs to be separately compiled).  */
+	 needs to be separately compiled, unless separate compilation
+	 has been requested).  */
       
-      if (DECL_INLINE (function))
+      if (DECL_INLINE (function) && !flag_keep_inline_functions)
 	function = inline_conversion (function);
       else
 	function = build_addr_func (function);

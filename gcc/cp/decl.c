@@ -722,29 +722,6 @@ poplevel (int keep, int reverse, int functionbody)
   POP_TIMEVAR_AND_RETURN (TV_NAME_LOOKUP, block);
 }
 
-/* Delete the node BLOCK from the current binding level.
-   This is used for the block inside a stmt expr ({...})
-   so that the block can be reinserted where appropriate.  */
-
-void
-delete_block (tree block)
-{
-  tree t;
-  if (current_binding_level->blocks == block)
-    current_binding_level->blocks = TREE_CHAIN (block);
-  for (t = current_binding_level->blocks; t;)
-    {
-      if (TREE_CHAIN (t) == block)
-	TREE_CHAIN (t) = TREE_CHAIN (block);
-      else
-	t = TREE_CHAIN (t);
-    }
-  TREE_CHAIN (block) = NULL_TREE;
-  /* Clear TREE_USED which is always set by poplevel.
-     The flag is set again if insert_block is called.  */
-  TREE_USED (block) = 0;
-}
-
 /* Insert BLOCK at the end of the list of subblocks of the
    current binding level.  This is used when a BIND_EXPR is expanded,
    to handle the BLOCK node inside the BIND_EXPR.  */
@@ -5489,6 +5466,7 @@ complete_array_type (tree type, tree initial_value, int do_default)
     {
       tree itype;
       tree domain;
+      tree elt_type;
 
       domain = build_index_type (maxindex);
       TYPE_DOMAIN (type) = domain;
@@ -5506,6 +5484,12 @@ complete_array_type (tree type, tree initial_value, int do_default)
 	 size of the array.  */
       if (! TYPE_DOMAIN (TYPE_MAIN_VARIANT (type)))
 	TYPE_DOMAIN (TYPE_MAIN_VARIANT (type)) = domain;
+
+      elt_type = TREE_TYPE (type);
+      TYPE_NEEDS_CONSTRUCTING (type)
+	= TYPE_NEEDS_CONSTRUCTING (TYPE_MAIN_VARIANT (elt_type));
+      TYPE_HAS_NONTRIVIAL_DESTRUCTOR (type)
+	= TYPE_HAS_NONTRIVIAL_DESTRUCTOR (TYPE_MAIN_VARIANT (elt_type));      
     }
 
   /* Lay out the type now that we can get the real answer.  */
@@ -10500,11 +10484,18 @@ start_function (tree declspecs, tree declarator, tree attrs, int flags)
 	 So clear DECL_EXTERNAL.  */
       DECL_EXTERNAL (decl1) = 0;
 
-      if ((DECL_DECLARED_INLINE_P (decl1) 
-	   || DECL_TEMPLATE_INSTANTIATION (decl1))
-	  && ! DECL_INTERFACE_KNOWN (decl1)
-	  /* Don't try to defer nested functions for now.  */
-	  && ! decl_function_context (decl1))
+      /* Don't defer inline functions if told to keep them.  */
+      if (flag_keep_inline_functions && DECL_DECLARED_INLINE_P (decl1))
+	{
+	  if (TREE_PUBLIC (decl1))
+	    maybe_make_one_only (decl1);
+	  DECL_INTERFACE_KNOWN (decl1) = 1;
+	}
+      else if ((DECL_DECLARED_INLINE_P (decl1)
+		|| DECL_TEMPLATE_INSTANTIATION (decl1))
+	       && ! DECL_INTERFACE_KNOWN (decl1)
+	       /* Don't try to defer nested functions for now.  */
+	       && ! decl_function_context (decl1))
 	DECL_DEFER_OUTPUT (decl1) = 1;
       else
 	DECL_INTERFACE_KNOWN (decl1) = 1;
