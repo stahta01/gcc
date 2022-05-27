@@ -101,7 +101,9 @@ enum memmodel
 #define GOMP_HAVE_EFFICIENT_ALIGNED_ALLOC 1
 #endif
 
-#if defined(GOMP_HAVE_EFFICIENT_ALIGNED_ALLOC) && !defined(__AMDGCN__)
+/* FIXME: Disabled for HAVE__ALIGNED_MALLOC because that needs matching gomp_aligned_free() calls
+   for every gomp_aligned_alloc() and that's still missing in various places */
+#if defined(GOMP_HAVE_EFFICIENT_ALIGNED_ALLOC) && !defined(__AMDGCN__) && !defined(HAVE__ALIGNED_MALLOC)
 #define GOMP_USE_ALIGNED_WORK_SHARES 1
 #endif
 
