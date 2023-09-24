@@ -27,3 +27,14 @@ Software Foundation, 59 Temple Place - Suite 330, Boston, MA
 
 /* This is the name of the null device on windows.  */
 #define HOST_BIT_BUCKET "nul"
+
+/* Override the default of "ll" in hwint.t.  */
+#define HOST_LL_PREFIX "I64"
+
+/* This replaces the use of stat to determine if files are different
+   in gcc.c (do_spec_1) handling of --save-temps switch.  */
+extern int
+w32_file_id_cmp (const char *, const char *);
+#define HOST_FILE_ID_CMP(SRC,DST) w32_file_id_cmp (SRC, DST)
+
+#define HOST_MMAP_OFFSET_ALIGNMENT 0x10000

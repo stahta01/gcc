@@ -25,6 +25,27 @@ Boston, MA 02111-1307, USA.  */
 #undef PREFERRED_DEBUGGING_TYPE
 #define PREFERRED_DEBUGGING_TYPE DBX_DEBUG
 
+#if 1 /* def HAVE_GAS_PE_SECREL32_RELOC */
+#define DWARF2_DEBUGGING_INFO 1
+
+#undef DBX_REGISTER_NUMBER
+#define DBX_REGISTER_NUMBER(n) (write_symbols == DWARF2_DEBUG   \
+                                ? svr4_dbx_register_map[n]      \
+                                : dbx_register_map[n])
+
+/* Use section relative relocations for debugging offsets.  Unlike
+   other targets that fake this by putting the section VMA at 0, PE
+   won't allow it.  */
+#define ASM_OUTPUT_DWARF_OFFSET(FILE, SIZE, LABEL)    \
+  do {                                                \
+    if (SIZE != 4)                                    \
+      abort ();                                       \
+                                                      \
+    fputs ("\t.secrel32\t", FILE);                    \
+    assemble_name (FILE, LABEL);                      \
+  } while (0)
+#endif
+
 #define TARGET_EXECUTABLE_SUFFIX ".exe"
 
 #define TARGET_IS_PE_COFF 1
@@ -156,7 +177,7 @@ switch_to_section (enum in_section section, tree decl)		\
       case in_readonly_data: readonly_data_section (); break;	\
       case in_named: named_section (decl, NULL, 0); break;	\
       case in_drectve: drectve_section (); break;		\
-      default: abort (); break;				\
+      default: abort (); break;					\
     }								\
 }
 
@@ -251,7 +272,7 @@ do {							\
    unit may not be bound to undefined symbols in another translation unit
    without user intervention.  For instance, under Microsoft Windows
    symbols must be explicitly imported from shared libraries (DLLs).  */
-#define MULTIPLE_SYMBOL_SPACES
+#define MULTIPLE_SYMBOL_SPACES 1
 
 extern void i386_pe_unique_section (TREE, int);
 #define TARGET_ASM_UNIQUE_SECTION i386_pe_unique_section
@@ -285,7 +306,7 @@ extern void i386_pe_unique_section (TREE, int);
   do									\
     {									\
       if (TREE_CODE (DECL) == FUNCTION_DECL)				\
-	i386_pe_record_external_function (NAME);			\
+	i386_pe_record_external_function ((DECL), (NAME));		\
     }									\
   while (0)
 
@@ -308,7 +329,7 @@ extern void i386_pe_unique_section (TREE, int);
 /* DWARF2 Unwinding doesn't work with exception handling yet.  To make
    it work, we need to build a libgcc_s.dll, and dcrt0.o should be
    changed to call __register_frame_info/__deregister_frame_info.  */
-#define DWARF2_UNWIND_INFO 0
+#define DWARF2_UNWIND_INFO 1
 
 /* Don't assume anything about the header files.  */
 #define NO_IMPLICIT_EXTERN_C
@@ -333,7 +354,7 @@ extern void i386_pe_unique_section (TREE, int);
 
 /* External function declarations.  */
 
-extern void i386_pe_record_external_function (const char *);
+extern void i386_pe_record_external_function (tree, const char *);
 extern void i386_pe_declare_function_type (FILE *, const char *, int);
 extern void i386_pe_record_exported_symbol (const char *, int);
 extern void i386_pe_file_end (void);
@@ -354,8 +375,10 @@ extern int i386_pe_dllimport_name_p (const char *);
 #define BIGGEST_ALIGNMENT 128
 
 /* Native complier aligns internal doubles in structures on dword boundaries.  */
+#ifdef IN_TARGET_LIBS
 #undef	BIGGEST_FIELD_ALIGNMENT
 #define BIGGEST_FIELD_ALIGNMENT 64
+#endif
 
 /* A bit-field declared as `int' forces `int' alignment for the struct.  */
 #undef PCC_BITFIELD_TYPE_MATTERS
@@ -382,6 +405,9 @@ extern int i386_pe_dllimport_name_p (const char *);
 	i386_pe_declare_function_type (STREAM, alias,			\
 				       TREE_PUBLIC (DECL));		\
       ASM_OUTPUT_DEF (STREAM, alias, IDENTIFIER_POINTER (TARGET));	\
+      if (i386_pe_dllexport_name_p (alias))				\
+	i386_pe_record_exported_symbol (alias,				\
+					TREE_CODE (DECL) == VAR_DECL);	\
     } while (0)
 
 #undef TREE

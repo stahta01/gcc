@@ -1269,7 +1269,7 @@ staticp (tree arg)
       /* Nested functions aren't static, since taking their address
 	 involves a trampoline.  */
       return ((decl_function_context (arg) == 0 || DECL_NO_STATIC_CHAIN (arg))
-	      && ! DECL_NON_ADDR_CONST_P (arg));
+	       && ! DECL_NON_ADDR_CONST_P (arg));
 
     case VAR_DECL:
       return ((TREE_STATIC (arg) || DECL_EXTERNAL (arg))

@@ -1586,6 +1586,13 @@ ix86_function_ok_for_sibcall (tree decl, tree exp)
 	}
     }
 
+#ifdef TARGET_DLLIMPORT_DECL_ATTRIBUTES
+  /* Dllimport'd functions are also called indirectly.  */
+  if (decl && lookup_attribute ("dllimport", DECL_ATTRIBUTES (decl))
+      && ix86_function_regparm (TREE_TYPE (decl), NULL) >= 3)
+    return false;
+#endif
+
   /* Otherwise okay.  That also includes certain types of indirect calls.  */
   return true;
 }
@@ -1788,7 +1795,15 @@ ix86_eax_live_at_start_p (void)
 int
 ix86_return_pops_args (tree fundecl, tree funtype, int size)
 {
+/*
   int rtd = TARGET_RTD && (!fundecl || TREE_CODE (fundecl) != IDENTIFIER_NODE);
+*/
+
+  /* Disable RTD for all compiler-generated calls to external functions.  */
+  int rtd = TARGET_RTD && !(fundecl
+			   && DECL_ARTIFICIAL (fundecl)
+			   && DECL_EXTERNAL (fundecl)
+			   && TREE_PUBLIC (fundecl));
 
   /* Cdecl functions override -mrtd, and never pop the stack.  */
   if (! lookup_attribute ("cdecl", TYPE_ATTRIBUTES (funtype))) {
@@ -5287,6 +5302,7 @@ ix86_expand_prologue (void)
       /* Only valid for Win32.  */
       rtx eax = gen_rtx_REG (SImode, 0);
       bool eax_live = ix86_eax_live_at_start_p ();
+      rtx t;
 
       if (TARGET_64BIT)
         abort ();
@@ -5297,15 +5313,24 @@ ix86_expand_prologue (void)
 	  allocate -= 4;
 	}
 
-      insn = emit_move_insn (eax, GEN_INT (allocate));
-      RTX_FRAME_RELATED_P (insn) = 1;
+      emit_move_insn (eax, GEN_INT (allocate));
 
       insn = emit_insn (gen_allocate_stack_worker (eax));
       RTX_FRAME_RELATED_P (insn) = 1;
+      t = gen_rtx_PLUS (Pmode, stack_pointer_rtx, GEN_INT (-allocate));
+      t = gen_rtx_SET (VOIDmode, stack_pointer_rtx, t);
+      REG_NOTES (insn) = gen_rtx_EXPR_LIST (REG_FRAME_RELATED_EXPR,
+					    t, REG_NOTES (insn));
 
       if (eax_live)
 	{
-	  rtx t = plus_constant (stack_pointer_rtx, allocate);
+	  if (frame_pointer_needed)
+	    t = plus_constant (hard_frame_pointer_rtx,
+			       allocate
+			       - frame.to_allocate
+			       - frame.nregs * UNITS_PER_WORD);
+	  else
+	    t = plus_constant (stack_pointer_rtx, allocate);
 	  emit_move_insn (eax, gen_rtx_MEM (SImode, t));
 	}
     }

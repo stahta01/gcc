@@ -88,7 +88,7 @@ compilation is specified by a string called a "spec".  */
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
 #endif
-#if defined (HAVE_DECL_GETRUSAGE) && !HAVE_DECL_GETRUSAGE
+#if defined (HAVE_GETRUSAGE) && defined (HAVE_DECL_GETRUSAGE) && !HAVE_DECL_GETRUSAGE
 extern int getrusage (int, struct rusage *);
 #endif
 
@@ -3174,7 +3174,7 @@ process_command (int argc, const char **argv)
 			  (argc + 1) * sizeof (argv[0]));
       new_argv[0] = new_argv0;
 
-      execvp (new_argv0, new_argv);
+      execvp (new_argv0, (const char *const *)new_argv);
       fatal ("couldn't run `%s': %s", new_argv0, xstrerror (errno));
     }
 
@@ -4155,7 +4155,9 @@ static int basename_length;
 static int suffixed_basename_length;
 static const char *input_basename;
 static const char *input_suffix;
+#ifndef HOST_FILE_ID_CMP
 static struct stat input_stat;
+#endif
 static int input_stat_set;
 
 /* The compiler used to process the current input file.  */
@@ -4706,6 +4708,9 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 		    *((char *) temp_filename + temp_filename_length) = '\0';
 		    if (strcmp (temp_filename, input_filename) != 0)
 		      {
+#if defined HOST_FILE_ID_CMP
+			if (HOST_FILE_ID_CMP(input_filename, temp_filename) != 0)
+#else
 			struct stat st_temp;
 
 			/* Note, set_input() resets input_stat_set to 0.  */
@@ -4725,6 +4730,7 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 			    || stat (temp_filename, &st_temp) < 0
 			    || input_stat.st_dev != st_temp.st_dev
 			    || input_stat.st_ino != st_temp.st_ino)
+#endif
 			  {
 			    temp_filename = save_string (temp_filename,
 							 temp_filename_length + 1);
@@ -5917,10 +5923,10 @@ fatal_error (int signum)
   kill (getpid (), signum);
 }
 
-extern int main (int, const char **);
+extern int main (int, char **);
 
 int
-main (int argc, const char **argv)
+main (int argc, char **argv)
 {
   size_t i;
   int value;
@@ -5963,6 +5969,8 @@ main (int argc, const char **argv)
   signal (SIGCHLD, SIG_DFL);
 #endif
 
+  expandargv (&argc, (char ***)&argv);
+ 
   /* Allocate the argument vector.  */
   alloc_args ();
 
@@ -6027,7 +6035,7 @@ main (int argc, const char **argv)
      Make a table of specified input files (infiles, n_infiles).
      Decode switches that are handled locally.  */
 
-  process_command (argc, argv);
+  process_command (argc, (const char**) argv);
 
   /* Initialize the vector of specs to just the default.
      This means one element containing 0s, as a terminator.  */
