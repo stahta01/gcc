@@ -51,7 +51,7 @@ int
 __gnat_mkdir (char *dir_name)
 {
 #if defined (_WIN32) || defined (__vxworks)
-  return mkdir (dir_name);
+  return (mkdir) (dir_name);
 #else
   return mkdir (dir_name, S_IRWXU | S_IRWXG | S_IRWXO);
 #endif

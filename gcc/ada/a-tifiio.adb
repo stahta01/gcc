@@ -550,7 +550,6 @@ package body Ada.Text_IO.Fixed_IO is
          E       : Integer)
       is
          N  : constant Natural := (A + Max_Digits - 1) / Max_Digits + 1;
-         pragma Debug (Put_Line ("N =" & N'Img));
          Q  : array (1 .. N) of Int64 := (others => 0);
 
          XX : Int64 := X;

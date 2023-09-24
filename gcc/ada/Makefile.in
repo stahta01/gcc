@@ -1536,9 +1536,9 @@ gnattools2: ../stamp-tools
 
 # These tools are only built for the native version.
 gnattools3: ../stamp-tools
-#	$(MAKE) -C tools -f ../Makefile $(TOOLS_FLAGS_TO_PASS) \
-#	  TOOLSCASE=native top_builddir=../../.. \
-#	  ../../gnatmem$(exeext) $(EXTRA_GNATTOOLS)
+	$(MAKE) -C tools -f ../Makefile $(TOOLS_FLAGS_TO_PASS) \
+	  TOOLSCASE=native top_builddir=../../.. \
+	  ../../gnatmem$(exeext) $(EXTRA_GNATTOOLS)
 
 # those tools are only built for the cross version
 gnattools4: ../stamp-tools
