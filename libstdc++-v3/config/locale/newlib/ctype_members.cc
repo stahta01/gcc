@@ -58,37 +58,37 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     switch (__m)
       {
       case space:
-	__ret = wctype("space");
+	__ret = wctype_l("space", _M_c_locale_ctype);
 	break;
       case print:
-	__ret = wctype("print");
+	__ret = wctype_l("print", _M_c_locale_ctype);
 	break;
       case cntrl:
-	__ret = wctype("cntrl");
+	__ret = wctype_l("cntrl", _M_c_locale_ctype);
 	break;
       case upper:
-	__ret = wctype("upper");
+	__ret = wctype_l("upper", _M_c_locale_ctype);
 	break;
       case lower:
-	__ret = wctype("lower");
+	__ret = wctype_l("lower", _M_c_locale_ctype);
 	break;
       case alpha:
-	__ret = wctype("alpha");
+	__ret = wctype_l("alpha", _M_c_locale_ctype);
 	break;
       case digit:
-	__ret = wctype("digit");
+	__ret = wctype_l("digit", _M_c_locale_ctype);
 	break;
       case punct:
-	__ret = wctype("punct");
+	__ret = wctype_l("punct", _M_c_locale_ctype);
 	break;
       case xdigit:
-	__ret = wctype("xdigit");
+	__ret = wctype_l("xdigit", _M_c_locale_ctype);
 	break;
       case alnum:
-	__ret = wctype("alnum");
+	__ret = wctype_l("alnum", _M_c_locale_ctype);
 	break;
       case graph:
-	__ret = wctype("graph");
+	__ret = wctype_l("graph", _M_c_locale_ctype);
 	break;
       default:
 	// Different from the generic version, xdigit and print in
@@ -100,25 +100,25 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	// equal to _X or _B, the two cases are specifically handled
 	// here.
 	if (__m & xdigit)
-	  __ret = wctype("xdigit");
+	  __ret = wctype_l("xdigit", _M_c_locale_ctype);
 	else if (__m & print)
-	  __ret = wctype("print");
+	  __ret = wctype_l("print", _M_c_locale_ctype);
 	else
 	  __ret = __wmask_type();
       }
     return __ret;
-  };
+  }
 
   wchar_t
   ctype<wchar_t>::do_toupper(wchar_t __c) const
-  { return towupper(__c); }
+  { return towupper_l(__c, _M_c_locale_ctype); }
 
   const wchar_t*
   ctype<wchar_t>::do_toupper(wchar_t* __lo, const wchar_t* __hi) const
   {
     while (__lo < __hi)
       {
-        *__lo = towupper(*__lo);
+	*__lo = towupper_l(*__lo, _M_c_locale_ctype);
         ++__lo;
       }
     return __hi;
@@ -126,14 +126,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   wchar_t
   ctype<wchar_t>::do_tolower(wchar_t __c) const
-  { return towlower(__c); }
+  { return towlower_l(__c, _M_c_locale_ctype); }
 
   const wchar_t*
   ctype<wchar_t>::do_tolower(wchar_t* __lo, const wchar_t* __hi) const
   {
     while (__lo < __hi)
       {
-        *__lo = towlower(*__lo);
+	*__lo = towlower_l(*__lo, _M_c_locale_ctype);
         ++__lo;
       }
     return __hi;
@@ -144,11 +144,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   do_is(mask __m, wchar_t __c) const
   {
     bool __ret = false;
-    // Newlib C library has a compact encoding that uses 8 bits only.
     const size_t __bitmasksize = 7;
     for (size_t __bitcur = 0; __bitcur <= __bitmasksize; ++__bitcur)
       if (__m & _M_bit[__bitcur]
-	  && iswctype(__c, _M_wmask[__bitcur]))
+	  && iswctype_l(__c, _M_wmask[__bitcur], _M_c_locale_ctype))
 	{
 	  __ret = true;
 	  break;
@@ -162,11 +161,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   {
     for (; __lo < __hi; ++__vec, ++__lo)
       {
-	// Newlib C library has a compact encoding that uses 8 bits only.
 	const size_t __bitmasksize = 7;
 	mask __m = 0;
 	for (size_t __bitcur = 0; __bitcur <= __bitmasksize; ++__bitcur)
-	  if (iswctype(*__lo, _M_wmask[__bitcur]))
+	  if (iswctype_l(*__lo, _M_wmask[__bitcur], _M_c_locale_ctype))
 	    __m |= _M_bit[__bitcur];
 	*__vec = __m;
       }
@@ -215,7 +213,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   {
     if (__wc >= 0 && __wc < 128 && _M_narrow_ok)
       return _M_narrow[__wc];
+    __c_locale __old = uselocale(_M_c_locale_ctype);
     const int __c = wctob(__wc);
+    uselocale(__old);
     return (__c == EOF ? __dfault : static_cast<char>(__c));
   }
 
@@ -224,6 +224,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   do_narrow(const wchar_t* __lo, const wchar_t* __hi, char __dfault,
 	    char* __dest) const
   {
+    __c_locale __old = uselocale(_M_c_locale_ctype);
     if (_M_narrow_ok)
       while (__lo < __hi)
 	{
@@ -245,12 +246,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  ++__lo;
 	  ++__dest;
 	}
+    uselocale(__old);
     return __hi;
   }
 
   void
   ctype<wchar_t>::_M_initialize_ctype() throw()
   {
+    __c_locale __old = uselocale(_M_c_locale_ctype);
     wint_t __i;
     for (__i = 0; __i < 128; ++__i)
       {
@@ -264,15 +267,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _M_narrow_ok = true;
     else
       _M_narrow_ok = false;
-    for (size_t __i = 0;
-	 __i < sizeof(_M_widen) / sizeof(wint_t); ++__i)
-      _M_widen[__i] = btowc(__i);
+    for (size_t __j = 0;
+	 __j < sizeof(_M_widen) / sizeof(wint_t); ++__j)
+      _M_widen[__j] = btowc(__j);
 
-    for (size_t __i = 0; __i <= 7; ++__i)
+    for (size_t __k = 0; __k <= 7; ++__k)
       {
-	_M_bit[__i] = static_cast<mask>(1 << __i);
-	_M_wmask[__i] = _M_convert_to_wmask(_M_bit[__i]);
+	_M_bit[__k] = static_cast<mask>(1 << __k);
+	_M_wmask[__k] = _M_convert_to_wmask(_M_bit[__k]);
       }
+    uselocale(__old);
   }
 #endif //  _GLIBCXX_USE_WCHAR_T
 

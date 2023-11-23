@@ -103,5 +103,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
       _M_neg_format = money_base::_S_default_pattern;
     }
 #endif
+
+  const __typeof(setlocale) *__setlocale = setlocale;
 }  // namespace std
 

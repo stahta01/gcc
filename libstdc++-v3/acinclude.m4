@@ -2437,7 +2437,7 @@ AC_DEFUN([GLIBCXX_ENABLE_CLOCALE], [
       dragonfly* | freebsd*)
 	enable_clocale_flag=dragonfly
 	;;
-      openbsd*)
+      openbsd* | cygwin*)
 	enable_clocale_flag=newlib
 	;;
       *)
@@ -2449,6 +2449,10 @@ AC_DEFUN([GLIBCXX_ENABLE_CLOCALE], [
 	;;
     esac
   fi
+  case ${target_os} in cygwin*)
+    EXTRA_LIBS="-lintl"
+    ;;
+  esac
 
   # Sanity check model, and test for special functionality.
   if test $enable_clocale_flag = gnu; then
@@ -2613,19 +2617,30 @@ AC_DEFUN([GLIBCXX_ENABLE_CLOCALE], [
       ;;
     newlib)
       AC_MSG_RESULT(newlib)
+      AC_CHECK_HEADERS(libintl.h, ac_has_libintl_h=yes, ac_has_libintl_h=no)
+      AC_CHECK_HEADERS(iconv.h, ac_has_iconv_h=yes, ac_has_iconv_h=no)
 
-      CLOCALE_H=config/locale/generic/c_locale.h
-      CLOCALE_CC=config/locale/generic/c_locale.cc
-      CCODECVT_CC=config/locale/generic/codecvt_members.cc
-      CCOLLATE_CC=config/locale/generic/collate_members.cc
+      CLOCALE_H=config/locale/newlib/c_locale.h
+      CLOCALE_CC=config/locale/newlib/c_locale.cc
+      CCODECVT_CC=config/locale/newlib/codecvt_members.cc
+      CCOLLATE_CC=config/locale/newlib/collate_members.cc
       CCTYPE_CC=config/locale/newlib/ctype_members.cc
-      CMESSAGES_H=config/locale/generic/messages_members.h
-      CMESSAGES_CC=config/locale/generic/messages_members.cc
-      CMONEY_CC=config/locale/generic/monetary_members.cc
-      CNUMERIC_CC=config/locale/generic/numeric_members.cc
-      CTIME_H=config/locale/generic/time_members.h
-      CTIME_CC=config/locale/generic/time_members.cc
-      CLOCALE_INTERNAL_H=config/locale/generic/c++locale_internal.h
+      if test $ac_has_libintl_h = yes; then
+	CMESSAGES_H=config/locale/newlib/messages_members.h
+	CMESSAGES_CC=config/locale/newlib/messages_members.cc
+      else
+	CMESSAGES_H=config/locale/generic/messages_members.h
+	CMESSAGES_CC=config/locale/generic/messages_members.cc
+      fi
+      CMONEY_CC=config/locale/newlib/monetary_members.cc
+      if test $ac_has_iconv_h = yes; then
+	CNUMERIC_CC=config/locale/newlib/numeric_members.cc
+      else
+	CNUMERIC_CC=config/locale/generic/numeric_members.cc
+      fi
+      CTIME_H=config/locale/newlib/time_members.h
+      CTIME_CC=config/locale/newlib/time_members.cc
+      CLOCALE_INTERNAL_H=config/locale/newlib/c++locale_internal.h
       ;;
   esac
 

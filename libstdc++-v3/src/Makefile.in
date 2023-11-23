@@ -307,6 +307,7 @@ ERROR_CONSTANTS_SRCDIR = @ERROR_CONSTANTS_SRCDIR@
 EXEEXT = @EXEEXT@
 EXTRA_CFLAGS = @EXTRA_CFLAGS@
 EXTRA_CXX_FLAGS = @EXTRA_CXX_FLAGS@
+EXTRA_LIBS = @EXTRA_LIBS@
 FGREP = @FGREP@
 FORMAT_FILE = @FORMAT_FILE@
 FREESTANDING_FLAGS = @FREESTANDING_FLAGS@
@@ -561,7 +562,7 @@ libstdc___la_DEPENDENCIES = \
 	$(top_builddir)/src/c++20/libc++20convenience.la
 
 libstdc___la_LDFLAGS = \
-	-version-info $(libtool_VERSION) ${version_arg} -lm
+	-version-info $(libtool_VERSION) ${version_arg} -lm $(EXTRA_LIBS)
 
 libstdc___la_LINK = $(CXXLINK) $(libstdc___la_LDFLAGS) $(lt_host_flags)
 @GLIBCXX_LDBL_ALT128_COMPAT_FALSE@@GLIBCXX_LDBL_COMPAT_TRUE@LTCXXCOMPILE64 = $(LTCXXCOMPILE)

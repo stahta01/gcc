@@ -795,6 +795,7 @@ _GLIBCXX_END_NAMESPACE_LDBL_OR_CXX11
 		    }
 		  break;
 		case 'I':
+		case 'l': // for newlib
 		  // Hour [01, 12]. [tm_hour]
 		  __beg = _M_extract_num(__beg, __end, __mem, 1, 12, 2,
 					 __io, __tmperr);

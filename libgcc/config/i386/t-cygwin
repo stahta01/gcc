@@ -5,7 +5,7 @@ LIBGCC2_INCLUDES += -I$(srcdir)/../winsup/include \
 	-I$(srcdir)/../winsup/cygwin/include
 
 # Cygwin-specific parts of LIB_SPEC
-SHLIB_LC = -lcygwin -ladvapi32 -lshell32 -luser32 -lkernel32
+SHLIB_LC = -lintl -liconv -lcygwin -ladvapi32 -lshell32 -luser32 -lkernel32
 
 # We have already included one of the t-{dw2,sjlj}-eh fragments for EH_MODEL
 SHLIB_EH_EXTENSION = $(subst -dw2,,-$(EH_MODEL))

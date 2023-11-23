@@ -188,6 +188,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   const char* const* const locale::_S_categories = __gnu_cxx::category_names;
+  const __typeof(setlocale) *__setlocale = setlocale;
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace

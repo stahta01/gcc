@@ -83,6 +83,8 @@ along with GCC; see the file COPYING3.  If not see
 #define LIB_SPEC "\
   %{pg:-lgmon} \
   %{pthread: } \
+  -lintl \
+  -liconv \
   -lcygwin \
   %{mwindows:-lgdi32 -lcomdlg32} \
   %{fvtable-verify=preinit:-lvtv -lpsapi; \
