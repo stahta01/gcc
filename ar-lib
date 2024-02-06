@@ -53,7 +53,7 @@ func_file_conv ()
 	  MINGW*)
 	    file_conv=mingw
 	    ;;
-	  CYGWIN*)
+	  CYGWIN*|MSYS*)
 	    file_conv=cygwin
 	    ;;
 	  *)

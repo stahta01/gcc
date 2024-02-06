@@ -2200,7 +2200,7 @@ AC_ARG_ENABLE(frame-pointer,
 		[enable -fno-omit-frame-pointer by default for x86])], [],
 [
 case $target_os in
-linux* | gnu* | darwin[[8912]]* | cygwin* | mingw*)
+linux* | gnu* | darwin[[8912]]* | cygwin* | msys* | mingw*)
   # Enable -fomit-frame-pointer by default for these systems with DWARF2.
   enable_frame_pointer=no
   ;;
@@ -2232,7 +2232,7 @@ AS_HELP_STRING([--enable-win32-registry=KEY],
                 of the registry key])],,)
 
 case $host_os in
-  win32 | pe | cygwin* | mingw32*)
+  win32 | pe | cygwin* | msys* | mingw32*)
     if test "x$enable_win32_registry" != xno; then
       AC_SEARCH_LIBS(RegOpenKeyExA, advapi32,, [enable_win32_registry=no])
     fi
@@ -3304,7 +3304,7 @@ gcc_GAS_CHECK_FEATURE([cfi sections directive],
 	.cfi_startproc
 	.cfi_endproc],
 [case $target_os in
-  win32 | pe | cygwin* | mingw32*)
+  win32 | pe | cygwin* | msys* | mingw32*)
     # Need to check that we generated the correct relocation for the
     # .debug_frame section.  This was fixed for binutils 2.21.
     gcc_cv_as_cfi_sections_directive=no
@@ -4712,7 +4712,7 @@ changequote(,)dnl
   i[34567]86-*-* | x86_64-*-*)
 changequote([,])dnl
     case $target_os in
-      cygwin*)
+      cygwin* | msys*)
 	# Full C++ conformance when using a shared libstdc++-v3 requires some
 	# support from the Cygwin DLL, which in more recent versions exports
 	# wrappers to aid in interposing and redirecting operators new, delete,
@@ -4731,7 +4731,7 @@ changequote([,])dnl
 	   Cygwin DLL exports wrappers to support libstdc++ function replacement.])
     esac
     case $target_os in
-      cygwin* | pe | mingw32*)
+      cygwin* | msys* | pe | mingw32*)
 	# Recent binutils allows the three-operand form of ".comm" on PE.  This
 	# definition is used unconditionally to initialise the default state of
 	# the target option variable that governs usage of the feature.
@@ -5603,7 +5603,7 @@ if test x"$insn" != x; then
 [Define if your assembler supports the --gdwarf-5 option.])])
 
  case $target_os in
-   win32 | pe | cygwin* | mingw32*)
+   win32 | pe | cygwin* | msys* | mingw32*)
      section_flags=\"dr\"
      function_type=".def foo; .scl 2; .type 32; .endef"
      function_size="";;
@@ -6419,7 +6419,7 @@ if test x"$dsymutil_flag" = x"yes"; then
 fi
 
 case $target_os in
-  win32 | pe | cygwin* | mingw32*)
+  win32 | pe | cygwin* | msys* | mingw32*)
     AC_MSG_CHECKING(broken PE linker dwarf5 support)
     gcc_cv_ld_broken_pe_dwarf5=yes
     if test $in_tree_ld = yes ; then

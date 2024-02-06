@@ -126,7 +126,7 @@ $(LIST): make-log-dir
 		TGT=`echo $@ | awk 'BEGIN { FS = "OPT" }; { print $$1 }'` &&			\
 		TGT=`$(GCC_SRC_DIR)/config.sub $$TGT` &&					\
 		case $$TGT in									\
-			*-*-darwin* | *-*-cygwin* | *-*-mingw* | *-*-aix* | bpf-*-*)			\
+			*-*-darwin* | *-*-cygwin* | *-*-msys* | *-*-mingw* | *-*-aix* | bpf-*-*)			\
 				ADDITIONAL_LANGUAGES="";					\
 				;;								\
 			*)									\

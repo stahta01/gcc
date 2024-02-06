@@ -35,6 +35,9 @@ case "${target}" in
   x86_64-*-cygwin* | i?86-*-cygwin*)
 	VTV_SUPPORTED=yes
 	;;
+  x86_64-*-msys* | i?86-*-msys*)
+	VTV_SUPPORTED=yes
+	;;
   x86_64-*-mingw* | i?86-*-mingw*)
 	VTV_SUPPORTED=yes
 	;;
